@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KG Mind — Knowledge Graph Chatbot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0a0f;
+  --surface: #12121a;
+  --surface2: #1a1a25;
+  --surface3: #22223a;
+  --border: rgba(120,110,255,0.15);
+  --border2: rgba(120,110,255,0.28);
+  --text: #e8e6ff;
+  --text2: #9490c0;
+  --text3: #5a5680;
+  --accent: #7c6fff;
+  --accent2: #a896ff;
+  --green: #4ade80;
+  --green-dim: rgba(74,222,128,0.15);
+  --amber: #fbbf24;
+  --amber-dim: rgba(251,191,36,0.12);
+  --red: #f87171;
+  --red-dim: rgba(248,113,113,0.12);
+  --teal: #22d3ee;
+  --teal-dim: rgba(34,211,238,0.12);
+  --mono: 'JetBrains Mono', monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Header ── */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  flex-shrink: 0;
+  z-index: 10;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+}
+
+.logo-icon {
+  width: 28px; height: 28px;
+  background: linear-gradient(135deg, #7c6fff, #a896ff);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+}
+
+.header-stats {
+  display: flex; gap: 20px;
+}
+
+.stat-pill {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--text2);
+  background: var(--surface2); border: 1px solid var(--border);
+  padding: 4px 10px; border-radius: 20px;
+}
+
+.stat-pill strong { color: var(--text); font-weight: 600; }
+
+.clear-btn {
+  font-size: 12px; color: var(--text3); background: none;
+  border: 1px solid var(--border); padding: 4px 10px;
+  border-radius: 6px; cursor: pointer; font-family: inherit;
+  transition: all 0.15s;
+}
+.clear-btn:hover { color: var(--text2); border-color: var(--border2); }
+
+/* ── Main layout ── */
+.main {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ── Chat panel ── */
+.chat-panel {
+  display: flex; flex-direction: column; overflow: hidden;
+  border-right: 1px solid var(--border);
+}
+
+.chat-messages {
+  flex: 1; overflow-y: auto; padding: 20px;
+  display: flex; flex-direction: column; gap: 16px;
+  scroll-behavior: smooth;
+}
+
+.chat-messages::-webkit-scrollbar { width: 4px; }
+.chat-messages::-webkit-scrollbar-track { background: transparent; }
+.chat-messages::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+/* Welcome state */
+.welcome {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  text-align: center; padding: 40px; gap: 16px;
+  opacity: 0.7;
+}
+
+.welcome-icon { font-size: 48px; margin-bottom: 4px; }
+.welcome h2 { font-size: 20px; font-weight: 600; color: var(--text); }
+.welcome p { color: var(--text2); max-width: 340px; line-height: 1.7; }
+
+.demo-pills {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  justify-content: center; margin-top: 8px;
+}
+
+.demo-pill {
+  background: var(--surface2); border: 1px solid var(--border2);
+  color: var(--accent2); padding: 6px 14px; border-radius: 20px;
+  font-size: 12px; cursor: pointer; transition: all 0.15s;
+  font-family: inherit;
+}
+.demo-pill:hover { background: var(--surface3); border-color: var(--accent); color: var(--text); }
+
+/* Message bubbles */
+.msg {
+  display: flex; gap: 10px; align-items: flex-start;
+}
+
+.msg-avatar {
+  width: 28px; height: 28px; border-radius: 8px;
+  flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 600;
+}
+
+.msg.user .msg-avatar {
+  background: linear-gradient(135deg, #22d3ee22, #22d3ee44);
+  border: 1px solid rgba(34,211,238,0.3); color: var(--teal);
+}
+
+.msg.bot .msg-avatar {
+  background: linear-gradient(135deg, #7c6fff22, #a896ff33);
+  border: 1px solid rgba(124,111,255,0.3); color: var(--accent2);
+}
+
+.msg-body { flex: 1; min-width: 0; }
+
+.msg-role {
+  font-size: 11px; color: var(--text3); font-weight: 500;
+  margin-bottom: 4px; letter-spacing: 0.5px; text-transform: uppercase;
+}
+
+.msg.user .msg-content {
+  background: var(--surface2); border: 1px solid rgba(34,211,238,0.2);
+  padding: 10px 14px; border-radius: 4px 12px 12px 12px;
+  color: var(--text);
+}
+
+/* Bot response blocks */
+.bot-response { display: flex; flex-direction: column; gap: 8px; }
+
+.response-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 4px 12px 12px 12px; overflow: hidden;
+}
+
+.response-section {
+  padding: 10px 14px; border-bottom: 1px solid var(--border);
+}
+.response-section:last-child { border-bottom: none; }
+
+.section-label {
+  font-size: 10px; font-weight: 600; letter-spacing: 1px;
+  text-transform: uppercase; margin-bottom: 6px; display: flex;
+  align-items: center; gap: 6px;
+}
+
+.section-label.reply { color: var(--accent2); }
+.section-label.ambig { color: var(--amber); }
+.section-label.clarify { color: var(--red); }
+.section-label.kg { color: var(--green); }
+
+.section-text { color: var(--text); line-height: 1.6; font-size: 14px; }
+
+/* Ambiguity meter */
+.ambig-row {
+  display: flex; align-items: center; gap: 10px; margin-top: 6px;
+}
+
+.score-bar-wrap {
+  flex: 1; height: 6px; background: var(--surface3);
+  border-radius: 3px; overflow: hidden;
+}
+
+.score-bar {
+  height: 100%; border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.score-bar.low { background: var(--green); }
+.score-bar.mid { background: var(--amber); }
+.score-bar.high { background: var(--red); }
+
+.score-value {
+  font-family: var(--mono); font-size: 12px; font-weight: 500;
+  min-width: 36px; text-align: right;
+}
+
+.score-value.low { color: var(--green); }
+.score-value.mid { color: var(--amber); }
+.score-value.high { color: var(--red); }
+
+.type-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+
+.type-tag {
+  font-size: 10px; font-weight: 500; padding: 2px 8px;
+  border-radius: 4px; letter-spacing: 0.3px;
+}
+
+.type-tag.missing { background: rgba(248,113,113,0.15); color: #f87171; }
+.type-tag.unclear { background: rgba(251,191,36,0.15); color: #fbbf24; }
+.type-tag.multiple { background: rgba(124,111,255,0.15); color: #a896ff; }
+.type-tag.unspecified { background: rgba(34,211,238,0.15); color: #22d3ee; }
+
+/* Clarification questions */
+.clarify-list { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+
+.clarify-item {
+  display: flex; align-items: flex-start; gap: 8px;
+  color: var(--text); padding: 6px 10px;
+  background: rgba(248,113,113,0.06); border-left: 2px solid var(--red);
+  border-radius: 0 6px 6px 0; font-size: 13px;
+}
+
+/* KG snapshot */
+.kg-diff {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 8px; margin-top: 4px;
+}
+
+.kg-panel { padding: 8px 10px; border-radius: 8px; }
+.kg-panel.before { background: rgba(90,86,128,0.12); border: 1px solid rgba(90,86,128,0.25); }
+.kg-panel.after  { background: rgba(74,222,128,0.06); border: 1px solid rgba(74,222,128,0.2); }
+
+.kg-panel-label {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.8px;
+  text-transform: uppercase; margin-bottom: 6px;
+}
+
+.kg-panel.before .kg-panel-label { color: var(--text3); }
+.kg-panel.after  .kg-panel-label { color: var(--green); }
+
+.kg-code {
+  font-family: var(--mono); font-size: 11px; line-height: 1.8;
+  color: var(--text2); white-space: pre;
+}
+
+.kg-code .node-line { color: var(--accent2); }
+.kg-code .edge-line { color: var(--teal); }
+.kg-code .new-node  { color: var(--green); }
+.kg-code .new-edge  { color: var(--green); }
+
+.changes-strip {
+  margin-top: 6px; padding: 6px 10px;
+  background: rgba(74,222,128,0.07); border: 1px solid rgba(74,222,128,0.2);
+  border-radius: 8px;
+}
+
+.change-item {
+  font-family: var(--mono); font-size: 11px; color: var(--green);
+  display: flex; align-items: center; gap: 6px;
+}
+
+.change-item.removed { color: var(--red); }
+.change-badge {
+  font-size: 9px; font-weight: 600; padding: 1px 5px;
+  border-radius: 3px; background: rgba(74,222,128,0.2); color: var(--green);
+}
+.change-badge.removed { background: rgba(248,113,113,0.2); color: var(--red); }
+
+/* ── Input bar ── */
+.input-bar {
+  padding: 16px 20px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  flex-shrink: 0;
+}
+
+.input-row {
+  display: flex; gap: 8px; align-items: flex-end;
+}
+
+#user-input {
+  flex: 1; resize: none;
+  background: var(--surface2); border: 1px solid var(--border2);
+  border-radius: 10px; padding: 10px 14px;
+  color: var(--text); font-family: inherit; font-size: 14px;
+  line-height: 1.5; outline: none;
+  transition: border-color 0.15s;
+  max-height: 120px; min-height: 42px;
+}
+
+#user-input:focus { border-color: var(--accent); }
+#user-input::placeholder { color: var(--text3); }
+
+.send-btn {
+  width: 42px; height: 42px; border-radius: 10px;
+  background: linear-gradient(135deg, #7c6fff, #a896ff);
+  border: none; cursor: pointer; font-size: 16px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s; flex-shrink: 0;
+}
+.send-btn:hover { transform: scale(1.05); }
+.send-btn:active { transform: scale(0.97); }
+.send-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+.input-hint {
+  font-size: 11px; color: var(--text3); margin-top: 6px;
+  display: flex; justify-content: space-between;
+}
+
+/* ── Graph panel ── */
+.graph-panel {
+  display: flex; flex-direction: column; overflow: hidden;
+  background: var(--surface);
+}
+
+.panel-header {
+  padding: 14px 18px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.panel-title {
+  font-size: 12px; font-weight: 600; letter-spacing: 0.8px;
+  text-transform: uppercase; color: var(--text2);
+  display: flex; align-items: center; gap: 6px;
+}
+
+.live-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--green);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.8); }
+}
+
+.graph-canvas-wrap {
+  flex: 1; position: relative; overflow: hidden;
+}
+
+#graph-svg {
+  width: 100%; height: 100%;
+}
+
+.graph-empty {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 8px; color: var(--text3); font-size: 13px;
+}
+
+/* KG text list panel */
+.kg-list-panel {
+  border-top: 1px solid var(--border);
+  max-height: 200px; overflow-y: auto;
+  flex-shrink: 0;
+}
+
+.kg-list-panel::-webkit-scrollbar { width: 3px; }
+.kg-list-panel::-webkit-scrollbar-thumb { background: var(--border2); }
+
+.kg-list-header {
+  padding: 8px 18px; font-size: 10px; font-weight: 600;
+  letter-spacing: 0.8px; text-transform: uppercase; color: var(--text3);
+  position: sticky; top: 0; background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.kg-list-body { padding: 8px 18px 12px; }
+
+.entity-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 0; border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.entity-row:last-child { border-bottom: none; }
+
+.entity-name { color: var(--text); font-weight: 500; flex: 1; }
+.entity-type {
+  font-size: 10px; font-weight: 600; padding: 1px 7px;
+  border-radius: 4px; text-transform: uppercase; letter-spacing: 0.3px;
+}
+
+.entity-type.Person       { background: rgba(124,111,255,0.15); color: #a896ff; }
+.entity-type.Organization { background: rgba(34,211,238,0.12);  color: #22d3ee; }
+.entity-type.Location     { background: rgba(74,222,128,0.12);  color: #4ade80; }
+.entity-type.Concept      { background: rgba(251,191,36,0.12);  color: #fbbf24; }
+.entity-type.Unknown      { background: rgba(90,86,128,0.15);   color: var(--text3); }
+
+.edge-row {
+  padding: 3px 0; font-family: var(--mono); font-size: 11px;
+  color: var(--text2); display: flex; align-items: center; gap: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.edge-row:last-child { border-bottom: none; }
+.edge-subject { color: var(--accent2); }
+.edge-rel { color: var(--text3); font-size: 10px; }
+.edge-object { color: var(--teal); }
+
+/* Loading dots */
+.loading-dots {
+  display: flex; gap: 4px; align-items: center; padding: 10px 14px;
+}
+
+.loading-dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--accent2); opacity: 0.3;
+  animation: dot-bounce 1.4s infinite ease-in-out;
+}
+
+.loading-dot:nth-child(2) { animation-delay: 0.2s; }
+.loading-dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes dot-bounce {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.3; }
+  40% { transform: scale(1); opacity: 1; }
+}
+
+/* Graph SVG styles */
+.graph-node-circle { transition: r 0.3s, fill-opacity 0.3s; }
+.graph-node-label { pointer-events: none; }
+.graph-edge-line { transition: opacity 0.3s; }
+
+/* Animations */
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.msg { animation: fadeIn 0.25s ease; }
+
+@keyframes nodeIn { from { transform: scale(0.3); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.new-node { animation: nodeIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">🧠</div>
+    KG Mind
+  </div>
+  <div class="header-stats">
+    <div class="stat-pill">Nodes: <strong id="stat-nodes">0</strong></div>
+    <div class="stat-pill">Edges: <strong id="stat-edges">0</strong></div>
+    <div class="stat-pill">Turns: <strong id="stat-turns">0</strong></div>
+  </div>
+  <button class="clear-btn" onclick="clearAll()">↺ Reset</button>
+</header>
+
+<div class="main">
+  <!-- Chat panel -->
+  <div class="chat-panel">
+    <div class="chat-messages" id="chat-messages">
+      <div class="welcome" id="welcome">
+        <div class="welcome-icon">🧠</div>
+        <h2>Knowledge Graph Chatbot</h2>
+        <p>Tell me about people, places, and their relationships. I'll build a knowledge graph from our conversation and detect ambiguities before updating memory.</p>
+        <div class="demo-pills">
+          <button class="demo-pill" onclick="tryDemo('John works at Google')">John works at Google</button>
+          <button class="demo-pill" onclick="tryDemo('He likes AI')">He likes AI</button>
+          <button class="demo-pill" onclick="tryDemo('He works there as a researcher')">He works there as a researcher</button>
+          <button class="demo-pill" onclick="tryDemo('Sarah founded OpenAI')">Sarah founded OpenAI</button>
+          <button class="demo-pill" onclick="tryDemo('Alice lives in San Francisco')">Alice lives in San Francisco</button>
+          <button class="demo-pill" onclick="runFullDemo()">▶ Run Full Demo</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="input-bar">
+      <div class="input-row">
+        <textarea id="user-input" placeholder="Tell me about a person, place, or relationship…" rows="1" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+        <button class="send-btn" id="send-btn" onclick="sendMessage()" title="Send">→</button>
+      </div>
+      <div class="input-hint">
+        <span>Press Enter to send, Shift+Enter for newline</span>
+        <span id="input-count">0 chars</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Graph panel -->
+  <div class="graph-panel">
+    <div class="panel-header">
+      <div class="panel-title">
+        <div class="live-dot"></div>
+        Live Knowledge Graph
+      </div>
+    </div>
+
+    <div class="graph-canvas-wrap">
+      <svg id="graph-svg">
+        <defs>
+          <marker id="garrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+            <path d="M1 1L9 5L1 9" fill="none" stroke="rgba(120,110,255,0.5)" stroke-width="1.5" stroke-linecap="round"/>
+          </marker>
+        </defs>
+        <g id="graph-edges"></g>
+        <g id="graph-nodes"></g>
+      </svg>
+      <div class="graph-empty" id="graph-empty">
+        <span style="font-size:32px">○</span>
+        <span>Graph empty — start chatting</span>
+      </div>
+    </div>
+
+    <div class="kg-list-panel">
+      <div class="kg-list-header">Entities & Relations</div>
+      <div class="kg-list-body" id="kg-list-body">
+        <div style="color:var(--text3); font-size:12px; padding:8px 0;">No data yet</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ======================= FIXED JS BLOCK (DROP-IN REPLACEMENT) ======================= -->
+
+<script>
+
+// ===================== NER (BACKEND + FALLBACK + MAPPING) =====================
+
+async function extractEntities(text) {
+  try {
+    const res = await fetch("http://127.0.0.1:5000/extract", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ text })
+    });
+
+    if (!res.ok) throw new Error("Backend error");
+
+    const data = await res.json();
+
+    if (!data.entities || data.entities.length === 0) {
+      return heuristicNER(text);
+    }
+
+    // Normalize backend response
+    const mapped = data.entities.map(e => ({
+      name: e.text || e.name,
+      type: mapLabel(e.label || e.type)
+    }));
+
+    return mapped;
+
+  } catch (err) {
+    console.error("NER failed, using fallback:", err);
+    return heuristicNER(text);
+  }
+}
+
+// ===================== FALLBACK NER =====================
+
+function heuristicNER(text) {
+  const words = text.split(/\s+/);
+  const entities = [];
+
+  words.forEach(w => {
+    const clean = w.replace(/[^a-zA-Z]/g, "");
+    if (!clean) return;
+
+    if (PERSON_NAMES.has(clean.toLowerCase())) {
+      entities.push({ name: clean, type: "Person" });
+    } else if (ORG_NAMES.has(clean.toLowerCase())) {
+      entities.push({ name: clean, type: "Organization" });
+    } else if (LOC_NAMES.has(clean.toLowerCase())) {
+      entities.push({ name: clean, type: "Location" });
+    } else if (CONCEPT_NAMES.has(clean.toLowerCase())) {
+      entities.push({ name: clean, type: "Concept" });
+    }
+  });
+
+  return entities;
+}
+
+// ===================== LABEL MAPPING =====================
+
+function mapLabel(label) {
+  if (!label) return "Unknown";
+
+  const l = label.toLowerCase();
+
+  if (l.includes("person")) return "Person";
+  if (l.includes("org")) return "Organization";
+  if (l.includes("gpe") || l.includes("loc")) return "Location";
+  if (l.includes("event") || l.includes("product")) return "Concept";
+
+  return "Unknown";
+}
+
+// ===================== FIXED PROCESS PIPELINE =====================
+
+async function processInput(userText) {
+  const snapBefore = KG.snapshot();
+  KG.clearNewFlags();
+
+  let workingText = userText;
+
+  // Resolve pronouns
+  const rawPronouns = [...userText.matchAll(PRONOUNS)].map(m => m[0].toLowerCase());
+  for (const pronoun of rawPronouns) {
+    const resolved = resolvePronoun(pronoun, conversationHistory);
+    if (resolved) {
+      workingText = workingText.replace(new RegExp(`\\b${pronoun}\\b`, 'i'), resolved);
+    }
+  }
+
+  // Extract entities
+  let entities = await extractEntities(workingText);
+
+  // Merge original entities if pronoun replacement happened
+  if (workingText !== userText) {
+    const originalEntities = await extractEntities(userText);
+    originalEntities.forEach(e => {
+      if (!entities.find(x => x.name === e.name)) {
+        entities.push(e);
+      }
+    });
+  }
+
+  const triples = extractRelations(workingText, entities);
+
+  console.log("Entities:", entities);
+  console.log("Triples:", triples);
+
+  const ambiguity = detectAmbiguity(userText, entities, conversationHistory);
+
+  let kgUpdated = false;
+
+  if (!ambiguity.shouldClarify) {
+    entities.forEach(e => KG.addEntity(e.name, e.type));
+
+    triples.forEach(([s, r, o]) => {
+      if (!KG.entities[KG.canonical(s)]) KG.addEntity(s, 'Unknown');
+      if (!KG.entities[KG.canonical(o)]) KG.addEntity(o, 'Unknown');
+      KG.addRelation(s, r, o);
+    });
+
+    kgUpdated = true;
+  }
+
+  const snapAfter = KG.snapshot();
+  const diff = computeDiff(snapBefore, snapAfter);
+
+  const response = generateResponse(userText, entities, triples, ambiguity, diff, kgUpdated);
+
+  conversationHistory.push({
+    role: 'user',
+    text: userText,
+    entities: entities.map(e => ({ name: e.name, type: e.type })),
+    ambiguity
+  });
+
+  turnCount++;
+
+  return {
+    userText,
+    response,
+    entities,
+    triples,
+    ambiguity,
+    snapBefore,
+    snapAfter,
+    diff,
+    kgUpdated
+  };
+}
+
+// ===================== FIX ASYNC BUG =====================
+
+async function processAndRender(text) {
+  isProcessing = true;
+  document.getElementById('send-btn').disabled = true;
+
+  const welcome = document.getElementById('welcome');
+  if (welcome) welcome.remove();
+
+  appendUserMessage(text);
+
+  const loadingId = 'loading-' + Date.now();
+  appendLoading(loadingId);
+
+  await new Promise(r => setTimeout(r, 300));
+
+  // FIX: await added
+  const result = await processInput(text);
+
+  document.getElementById(loadingId)?.remove();
+
+  appendBotResponse(result);
+  renderGraph();
+  updateKGList();
+  updateStats();
+
+  isProcessing = false;
+  document.getElementById('send-btn').disabled = false;
+  document.getElementById('user-input').focus();
+}
+
+</script>
+</body>
+</html>
