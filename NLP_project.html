@@ -545,92 +545,254 @@ header {
   </div>
 </div>
 
-<!-- ======================= FIXED JS BLOCK (DROP-IN REPLACEMENT) ======================= -->
-
 <script>
+// ════════════════════════════════════════════════════════════
+// KNOWLEDGE GRAPH ENGINE
+// ════════════════════════════════════════════════════════════
 
-// ===================== NER (BACKEND + FALLBACK + MAPPING) =====================
+const KG = {
+  entities: {},   // name -> {name, type, confidence, aliases}
+  relations: [],  // [{source, relation, target, confidence}]
 
-async function extractEntities(text) {
-  try {
-    const res = await fetch("http://127.0.0.1:5000/extract", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ text })
-    });
+  canonical(name) { return name.trim().toLowerCase(); },
 
-    if (!res.ok) throw new Error("Backend error");
-
-    const data = await res.json();
-
-    if (!data.entities || data.entities.length === 0) {
-      return heuristicNER(text);
+  addEntity(name, type, confidence=1.0) {
+    const key = this.canonical(name);
+    if (!this.entities[key]) {
+      this.entities[key] = { name: name.trim(), type, confidence, aliases: [], isNew: true };
+    } else {
+      this.entities[key].confidence = Math.max(this.entities[key].confidence, confidence);
+      this.entities[key].isNew = false;
     }
+    return key;
+  },
 
-    // Normalize backend response
-    const mapped = data.entities.map(e => ({
-      name: e.text || e.name,
-      type: mapLabel(e.label || e.type)
-    }));
+  addRelation(src, rel, tgt, confidence=1.0) {
+    const s = this.canonical(src), t = this.canonical(tgt);
+    if (!this.entities[s] || !this.entities[t]) return;
+    for (const r of this.relations) {
+      if (this.canonical(r.source)===s && r.relation===rel && this.canonical(r.target)===t) {
+        r.confidence = Math.max(r.confidence, confidence);
+        return;
+      }
+    }
+    this.relations.push({ source: s, relation: rel, target: t, confidence, isNew: true });
+  },
 
-    return mapped;
+  snapshot() {
+    return {
+      nodes: JSON.parse(JSON.stringify(this.entities)),
+      edges: JSON.parse(JSON.stringify(this.relations))
+    };
+  },
 
-  } catch (err) {
-    console.error("NER failed, using fallback:", err);
-    return heuristicNER(text);
+  clearNewFlags() {
+    Object.values(this.entities).forEach(e => e.isNew = false);
+    this.relations.forEach(r => r.isNew = false);
   }
-}
+};
 
-// ===================== FALLBACK NER =====================
+// ════════════════════════════════════════════════════════════
+// ENTITY EXTRACTION (heuristic)
+// ════════════════════════════════════════════════════════════
 
-function heuristicNER(text) {
-  const words = text.split(/\s+/);
-  const entities = [];
+const PERSON_NAMES = new Set(['john','jane','alice','bob','charlie','david','emma','frank',
+  'george','helen','ivan','julia','kevin','lisa','mike','nancy','oliver','paul',
+  'rachel','sam','sarah','tom','uma','victor','wendy','xander','yasmine','zach']);
 
-  words.forEach(w => {
-    const clean = w.replace(/[^a-zA-Z]/g, "");
-    if (!clean) return;
+const ORG_NAMES = new Set(['google','microsoft','amazon','apple','meta','netflix','tesla',
+  'openai','anthropic','ibm','nvidia','uber','twitter','linkedin','facebook','intel',
+  'oracle','salesforce','adobe','spacex','deepmind']);
 
-    if (PERSON_NAMES.has(clean.toLowerCase())) {
-      entities.push({ name: clean, type: "Person" });
-    } else if (ORG_NAMES.has(clean.toLowerCase())) {
-      entities.push({ name: clean, type: "Organization" });
-    } else if (LOC_NAMES.has(clean.toLowerCase())) {
-      entities.push({ name: clean, type: "Location" });
-    } else if (CONCEPT_NAMES.has(clean.toLowerCase())) {
-      entities.push({ name: clean, type: "Concept" });
-    }
+const LOC_NAMES = new Set(['new york','london','paris','tokyo','berlin','san francisco',
+  'seattle','boston','chicago','los angeles','bangalore','mumbai','beijing','shanghai',
+  'toronto','sydney','dubai','singapore','austin']);
+
+const CONCEPT_NAMES = new Set(['ai','artificial intelligence','machine learning','deep learning',
+  'nlp','natural language processing','robotics','quantum computing','blockchain',
+  'cybersecurity','data science','cloud computing','music','sports','art','science',
+  'technology','finance','programming','python','javascript']);
+
+const PRONOUNS = /\b(he|she|they|it|him|her|them|his|hers|their|this|that|there|here)\b/gi;
+const VAGUE_LOCS = /\b(there|here)\b/gi;
+
+function extractEntities(text) {
+  const tl = text.toLowerCase();
+  const found = [];
+
+  PERSON_NAMES.forEach(n => {
+    if (new RegExp(`\\b${n}\\b`).test(tl))
+      found.push({ name: n.charAt(0).toUpperCase()+n.slice(1), type:'Person' });
   });
 
-  return entities;
+  ORG_NAMES.forEach(n => {
+    if (tl.includes(n))
+      found.push({ name: n.charAt(0).toUpperCase()+n.slice(1), type:'Organization' });
+  });
+
+  LOC_NAMES.forEach(n => {
+    if (tl.includes(n))
+      found.push({ name: n.split(' ').map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(' '), type:'Location' });
+  });
+
+  CONCEPT_NAMES.forEach(n => {
+    if (new RegExp(`\\b${n}\\b`).test(tl))
+      found.push({ name: n.toUpperCase() === n ? n : n.charAt(0).toUpperCase()+n.slice(1), type:'Concept' });
+  });
+
+  return found;
 }
 
-// ===================== LABEL MAPPING =====================
+function extractRelations(text, entities) {
+  const tl = text.toLowerCase();
+  const triples = [];
+  const patterns = [
+    [/(\w+)\s+works?\s+at\s+(\w+)/g, 'works_at'],
+    [/(\w+)\s+works?\s+for\s+(\w+)/g, 'works_at'],
+    [/(\w+)\s+works?\s+as\s+(?:a\s+)?([\w\s]+?)(?:\s+at\s+\w+)?(?:\s*$|\.)/g, 'has_role'],
+    [/(\w+)\s+lives?\s+in\s+([\w\s]+?)(?:\s*$|\.)/g, 'lives_in'],
+    [/(\w+)\s+likes?\s+([\w\s]+?)(?:\s*$|\.)/g, 'likes'],
+    [/(\w+)\s+loves?\s+([\w\s]+?)(?:\s*$|\.)/g, 'loves'],
+    [/(\w+)\s+founded\s+(\w+)/g, 'founded'],
+    [/(\w+)\s+is\s+(?:a\s+)?(researcher|engineer|manager|director|ceo|founder|developer|scientist)/g, 'has_role'],
+    [/(\w+)\s+is\s+interested\s+in\s+([\w\s]+?)(?:\s*$|\.)/g, 'interested_in'],
+    [/(\w+)\s+is\s+part\s+of\s+(\w+)/g, 'part_of'],
+    [/(\w+)\s+leads?\s+(\w+)/g, 'leads'],
+    [/(\w+)\s+owns?\s+([\w\s]+?)(?:\s*$|\.)/g, 'owns'],
+  ];
 
-function mapLabel(label) {
-  if (!label) return "Unknown";
-
-  const l = label.toLowerCase();
-
-  if (l.includes("person")) return "Person";
-  if (l.includes("org")) return "Organization";
-  if (l.includes("gpe") || l.includes("loc")) return "Location";
-  if (l.includes("event") || l.includes("product")) return "Concept";
-
-  return "Unknown";
+  for (const [pat, rel] of patterns) {
+    let m;
+    const rePat = new RegExp(pat.source, 'gi');
+    while ((m = rePat.exec(tl)) !== null) {
+      const s = m[1].trim(), o = m[m.length-1].trim();
+      if (s && o && s !== o && s.length > 1 && o.length > 1) {
+        triples.push([
+          s.charAt(0).toUpperCase()+s.slice(1),
+          rel,
+          o.charAt(0).toUpperCase()+o.slice(1)
+        ]);
+      }
+    }
+  }
+  return triples;
 }
 
-// ===================== FIXED PROCESS PIPELINE =====================
+// ════════════════════════════════════════════════════════════
+// AMBIGUITY DETECTOR
+// ════════════════════════════════════════════════════════════
 
-async function processInput(userText) {
+const THRESHOLD = 0.4;
+
+function detectAmbiguity(text, entities, conversationHistory) {
+  let score = 0;
+  const types = [], reasons = [], questions = [];
+
+  // 1. Unresolved pronouns
+  const pronounMatches = [...text.matchAll(PRONOUNS)].map(m => m[0].toLowerCase());
+  const unresolvedPronouns = pronounMatches.filter(p =>
+    !resolvePronoun(p, conversationHistory)
+  );
+
+  if (unresolvedPronouns.length > 0) {
+    score += 0.35 * Math.min(unresolvedPronouns.length, 2);
+    types.push('missing_entity');
+    reasons.push(`Unresolved pronouns: ${[...new Set(unresolvedPronouns)].join(', ')}`);
+    const unique = [...new Set(unresolvedPronouns)];
+    questions.push(`Who or what does "${unique[0]}" refer to?`);
+  }
+
+  // 2. Vague location refs
+  const vagueLocMatches = [...text.matchAll(VAGUE_LOCS)].map(m => m[0]);
+  if (vagueLocMatches.length > 0) {
+    score += 0.30;
+    types.push('underspecified_context');
+    reasons.push(`Vague location reference: "${vagueLocMatches[0]}"`);
+    questions.push('Which specific location or organization are you referring to?');
+  }
+
+  // 3. Vague relations
+  if (/\blikes?\s+(music|things?|stuff|sports?)\b/i.test(text)) {
+    score += 0.20;
+    types.push('unclear_relation');
+    reasons.push('Vague "likes" relation — type unspecified');
+    questions.push('Can you be more specific? (e.g., what kind of music?)');
+  }
+
+  // 4. Multiple KG candidates
+  for (const ent of entities) {
+    const key = ent.name.toLowerCase();
+    const candidates = Object.keys(KG.entities).filter(k =>
+      k.includes(key) || key.includes(k)
+    );
+    if (candidates.length > 1) {
+      score += 0.25;
+      types.push('multiple_candidates');
+      reasons.push(`"${ent.name}" matches multiple nodes: ${candidates.join(', ')}`);
+      questions.push(`Do you mean "${candidates[0]}" or "${candidates[1]}"?`);
+    }
+  }
+
+  // 5. Relations mentioned but no entities extracted
+  if (/\b(works?|lives?|likes?|owns?|founded|leads?)\b/i.test(text) && entities.length === 0) {
+    score += 0.40;
+    types.push('missing_entity');
+    reasons.push('Relation words found but no entities could be extracted');
+    questions.push('Who is performing this action?');
+  }
+
+  score = Math.min(score, 1.0);
+  const uniqueTypes = [...new Set(types)];
+  const uniqueQs = [...new Set(questions)].slice(0, 3);
+
+  return {
+    score: Math.round(score * 1000) / 1000,
+    types: uniqueTypes,
+    reasons: [...new Set(reasons)],
+    pronounsFound: pronounMatches,
+    vagueRefs: vagueLocMatches,
+    shouldClarify: score >= THRESHOLD,
+    clarificationQuestions: uniqueQs
+  };
+}
+
+function resolvePronoun(pronoun, history) {
+  const personP  = new Set(['he','him','his','she','her','hers']);
+  const thingP   = new Set(['it','its']);
+  const placeP   = new Set(['there','here']);
+  const pluralP  = new Set(['they','them','their']);
+
+  for (let i = history.length - 1; i >= Math.max(0, history.length - 4); i--) {
+    const turn = history[i];
+    for (const ent of (turn.entities || [])) {
+      if (personP.has(pronoun) && ent.type === 'Person') return ent.name;
+      if (thingP.has(pronoun) && ['Concept','Organization'].includes(ent.type)) return ent.name;
+      if (placeP.has(pronoun) && ['Location','Organization'].includes(ent.type)) return ent.name;
+      if (pluralP.has(pronoun)) return ent.name;
+    }
+  }
+  return null;
+}
+
+// ════════════════════════════════════════════════════════════
+// CONVERSATION STATE
+// ════════════════════════════════════════════════════════════
+
+let conversationHistory = [];
+let turnCount = 0;
+let isProcessing = false;
+
+// ════════════════════════════════════════════════════════════
+// MAIN PROCESSING PIPELINE
+// ════════════════════════════════════════════════════════════
+
+function processInput(userText) {
+  // Step 1: Snapshot before
   const snapBefore = KG.snapshot();
   KG.clearNewFlags();
 
+  // Step 2: Extract entities
   let workingText = userText;
-
-  // Resolve pronouns
   const rawPronouns = [...userText.matchAll(PRONOUNS)].map(m => m[0].toLowerCase());
   for (const pronoun of rawPronouns) {
     const resolved = resolvePronoun(pronoun, conversationHistory);
@@ -639,48 +801,40 @@ async function processInput(userText) {
     }
   }
 
-  // Extract entities
-  let entities = await extractEntities(workingText);
-
-  // Merge original entities if pronoun replacement happened
+  const entities = extractEntities(workingText);
   if (workingText !== userText) {
-    const originalEntities = await extractEntities(userText);
-    originalEntities.forEach(e => {
-      if (!entities.find(x => x.name === e.name)) {
-        entities.push(e);
-      }
+    extractEntities(userText).forEach(e => {
+      if (!entities.find(x => x.name === e.name)) entities.push(e);
     });
   }
 
   const triples = extractRelations(workingText, entities);
 
-  console.log("Entities:", entities);
-  console.log("Triples:", triples);
-
+  // Step 3: Ambiguity check
   const ambiguity = detectAmbiguity(userText, entities, conversationHistory);
 
+  // Step 4: Update KG if not ambiguous
   let kgUpdated = false;
-
   if (!ambiguity.shouldClarify) {
     entities.forEach(e => KG.addEntity(e.name, e.type));
-
     triples.forEach(([s, r, o]) => {
       if (!KG.entities[KG.canonical(s)]) KG.addEntity(s, 'Unknown');
       if (!KG.entities[KG.canonical(o)]) KG.addEntity(o, 'Unknown');
       KG.addRelation(s, r, o);
     });
-
     kgUpdated = true;
   }
 
+  // Step 5: Snapshot after + diff
   const snapAfter = KG.snapshot();
   const diff = computeDiff(snapBefore, snapAfter);
 
+  // Step 6: Generate response
   const response = generateResponse(userText, entities, triples, ambiguity, diff, kgUpdated);
 
+  // Store in history
   conversationHistory.push({
-    role: 'user',
-    text: userText,
+    role: 'user', text: userText,
     entities: entities.map(e => ({ name: e.name, type: e.type })),
     ambiguity
   });
@@ -688,40 +842,86 @@ async function processInput(userText) {
   turnCount++;
 
   return {
-    userText,
-    response,
-    entities,
-    triples,
-    ambiguity,
-    snapBefore,
-    snapAfter,
-    diff,
-    kgUpdated
+    userText, response, entities, triples,
+    ambiguity, snapBefore, snapAfter, diff, kgUpdated
   };
 }
 
-// ===================== FIX ASYNC BUG =====================
+function computeDiff(before, after) {
+  const addedNodes = Object.keys(after.nodes).filter(k => !before.nodes[k]);
+  const removedNodes = Object.keys(before.nodes).filter(k => !after.nodes[k]);
+  const beforeEdges = new Set(before.edges.map(e => `${e.source}|${e.relation}|${e.target}`));
+  const afterEdges  = new Set(after.edges.map(e => `${e.source}|${e.relation}|${e.target}`));
+  const addedEdges   = after.edges.filter(e => !beforeEdges.has(`${e.source}|${e.relation}|${e.target}`));
+  const removedEdges = before.edges.filter(e => !afterEdges.has(`${e.source}|${e.relation}|${e.target}`));
+  return { addedNodes, removedNodes, addedEdges, removedEdges };
+}
+
+function generateResponse(text, entities, triples, ambiguity, diff, kgUpdated) {
+  if (ambiguity.shouldClarify) {
+    const qs = ambiguity.clarificationQuestions;
+    return `I'd like to clarify before updating my memory. ${qs.join(' ')}`;
+  }
+  const parts = [];
+  if (diff.addedNodes.length) {
+    const names = diff.addedNodes.map(k => KG.entities[k]?.name || k);
+    parts.push(`I've noted ${names.join(', ')} as new entities.`);
+  }
+  if (diff.addedEdges.length) {
+    const edgeStrs = diff.addedEdges.map(e =>
+      `${KG.entities[e.source]?.name||e.source} ${e.relation.replace(/_/g,' ')} ${KG.entities[e.target]?.name||e.target}`
+    );
+    parts.push(`Recorded: ${edgeStrs.join('; ')}.`);
+  }
+  if (!parts.length) {
+    if (entities.length) parts.push(`Got it — I recognized ${entities.map(e=>e.name).join(', ')} but found no new relations to record.`);
+    else parts.push("Understood, but I couldn't extract any new knowledge to add to the graph.");
+  }
+  return parts.join(' ');
+}
+
+// ════════════════════════════════════════════════════════════
+// UI RENDERING
+// ════════════════════════════════════════════════════════════
+
+function sendMessage() {
+  const input = document.getElementById('user-input');
+  const text = input.value.trim();
+  if (!text || isProcessing) return;
+
+  input.value = '';
+  autoResize(input);
+  document.getElementById('input-count').textContent = '0 chars';
+  processAndRender(text);
+}
 
 async function processAndRender(text) {
   isProcessing = true;
   document.getElementById('send-btn').disabled = true;
 
+  // Hide welcome
   const welcome = document.getElementById('welcome');
   if (welcome) welcome.remove();
 
+  // Add user message
   appendUserMessage(text);
 
+  // Add loading indicator
   const loadingId = 'loading-' + Date.now();
   appendLoading(loadingId);
 
-  await new Promise(r => setTimeout(r, 300));
+  // Process (simulate slight delay for UX)
+  await new Promise(r => setTimeout(r, 300 + Math.random()*200));
 
-  // FIX: await added
-  const result = await processInput(text);
+  const result = processInput(text);
 
+  // Remove loading
   document.getElementById(loadingId)?.remove();
 
+  // Add bot response
   appendBotResponse(result);
+
+  // Update graph
   renderGraph();
   updateKGList();
   updateStats();
@@ -731,6 +931,496 @@ async function processAndRender(text) {
   document.getElementById('user-input').focus();
 }
 
+function appendUserMessage(text) {
+  const chat = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = 'msg user';
+  div.innerHTML = `
+    <div class="msg-avatar">U</div>
+    <div class="msg-body">
+      <div class="msg-role">You</div>
+      <div class="msg-content">${escHtml(text)}</div>
+    </div>`;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function appendLoading(id) {
+  const chat = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = 'msg bot';
+  div.id = id;
+  div.innerHTML = `
+    <div class="msg-avatar">KG</div>
+    <div class="msg-body">
+      <div class="msg-role">KG Mind</div>
+      <div class="loading-dots">
+        <div class="loading-dot"></div>
+        <div class="loading-dot"></div>
+        <div class="loading-dot"></div>
+      </div>
+    </div>`;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function appendBotResponse(result) {
+  const { response, ambiguity, snapBefore, snapAfter, diff } = result;
+  const chat = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = 'msg bot';
+
+  const scoreClass = ambiguity.score < 0.3 ? 'low' : ambiguity.score < 0.6 ? 'mid' : 'high';
+  const scoreBarWidth = Math.round(ambiguity.score * 100);
+
+  // Build type tags
+  const tagMap = {
+    missing_entity: ['missing','Missing Entity'],
+    unclear_relation: ['unclear','Unclear Relation'],
+    multiple_candidates: ['multiple','Multiple Candidates'],
+    underspecified_context: ['unspecified','Underspecified']
+  };
+
+  const typeTags = ambiguity.types.map(t => {
+    const [cls, label] = tagMap[t] || ['unclear', t];
+    return `<span class="type-tag ${cls}">${label}</span>`;
+  }).join('');
+
+  // Reasons
+  const reasonsHTML = ambiguity.reasons.map(r =>
+    `<div style="font-size:12px;color:var(--text2);margin-top:4px;">• ${escHtml(r)}</div>`
+  ).join('');
+
+  // Clarification
+  const clarifSection = ambiguity.shouldClarify && ambiguity.clarificationQuestions.length > 0
+    ? `<div class="response-section">
+        <div class="section-label clarify">❓ Clarification Needed</div>
+        <div class="clarify-list">
+          ${ambiguity.clarificationQuestions.map(q =>
+            `<div class="clarify-item">→ ${escHtml(q)}</div>`
+          ).join('')}
+        </div>
+      </div>` : '';
+
+  // KG before snapshot text
+  const beforeText = snapshotToText(snapBefore);
+  const afterText  = snapshotToText(snapAfter);
+
+  // Changes
+  const changesHTML = buildChangesHTML(diff);
+
+  div.innerHTML = `
+    <div class="msg-avatar">KG</div>
+    <div class="msg-body">
+      <div class="msg-role">KG Mind</div>
+      <div class="bot-response">
+        <div class="response-card">
+          <div class="response-section">
+            <div class="section-label reply">🧾 Response</div>
+            <div class="section-text">${escHtml(response)}</div>
+          </div>
+
+          <div class="response-section">
+            <div class="section-label ambig">⚠️ Ambiguity Analysis</div>
+            <div class="ambig-row">
+              <div class="score-bar-wrap">
+                <div class="score-bar ${scoreClass}" style="width:${scoreBarWidth}%"></div>
+              </div>
+              <span class="score-value ${scoreClass}">${ambiguity.score.toFixed(2)}</span>
+            </div>
+            ${typeTags ? `<div class="type-tags">${typeTags}</div>` : '<div style="font-size:12px;color:var(--green);margin-top:4px;">✓ No ambiguity detected</div>'}
+            ${reasonsHTML}
+          </div>
+
+          ${clarifSection}
+
+          <div class="response-section">
+            <div class="section-label kg">🧠 Knowledge Graph Snapshot</div>
+            <div class="kg-diff">
+              <div class="kg-panel before">
+                <div class="kg-panel-label">Before</div>
+                <pre class="kg-code">${formatKGText(snapBefore, [], [])}</pre>
+              </div>
+              <div class="kg-panel after">
+                <div class="kg-panel-label">After</div>
+                <pre class="kg-code">${formatKGText(snapAfter, diff.addedNodes, diff.addedEdges)}</pre>
+              </div>
+            </div>
+            ${changesHTML}
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function snapshotToText(snap) {
+  const lines = [];
+  const nodes = Object.values(snap.nodes);
+  if (nodes.length === 0 && snap.edges.length === 0) return '(empty)';
+  if (nodes.length) {
+    lines.push('Nodes:');
+    nodes.forEach(n => lines.push(`  ${n.name} (${n.type})`));
+  }
+  if (snap.edges.length) {
+    lines.push('Edges:');
+    snap.edges.forEach(e => {
+      const sn = snap.nodes[e.source]?.name || e.source;
+      const tn = snap.nodes[e.target]?.name || e.target;
+      lines.push(`  ${sn} → ${e.relation} → ${tn}`);
+    });
+  }
+  return lines.join('\n') || '(empty)';
+}
+
+function formatKGText(snap, addedNodeKeys, addedEdges) {
+  const addedEdgeSet = new Set(addedEdges.map(e => `${e.source}|${e.relation}|${e.target}`));
+  const lines = [];
+  const nodes = Object.entries(snap.nodes);
+  if (nodes.length === 0 && snap.edges.length === 0) return '(empty)';
+  if (nodes.length) {
+    lines.push('Nodes:');
+    nodes.forEach(([k, n]) => {
+      const isNew = addedNodeKeys.includes(k);
+      const cls = isNew ? 'new-node' : 'node-line';
+      const prefix = isNew ? '+ ' : '  ';
+      lines.push(`<span class="${cls}">${escHtml(prefix + n.name + ' (' + n.type + ')')}</span>`);
+    });
+  }
+  if (snap.edges.length) {
+    lines.push('Edges:');
+    snap.edges.forEach(e => {
+      const key = `${e.source}|${e.relation}|${e.target}`;
+      const isNew = addedEdgeSet.has(key);
+      const sn = snap.nodes[e.source]?.name || e.source;
+      const tn = snap.nodes[e.target]?.name || e.target;
+      const cls = isNew ? 'new-edge' : 'edge-line';
+      const prefix = isNew ? '+ ' : '  ';
+      lines.push(`<span class="${cls}">${escHtml(prefix + sn + ' → ' + e.relation + ' → ' + tn)}</span>`);
+    });
+  }
+  return lines.join('\n') || '(empty)';
+}
+
+function buildChangesHTML(diff) {
+  const items = [];
+  diff.addedNodes.forEach(k => {
+    const n = KG.entities[k];
+    items.push(`<div class="change-item"><span class="change-badge">+NODE</span>${escHtml(n?.name||k)} (${n?.type||'?'})</div>`);
+  });
+  diff.addedEdges.forEach(e => {
+    const sn = KG.entities[e.source]?.name || e.source;
+    const tn = KG.entities[e.target]?.name || e.target;
+    items.push(`<div class="change-item"><span class="change-badge">+EDGE</span>${escHtml(sn)} → ${escHtml(e.relation)} → ${escHtml(tn)}</div>`);
+  });
+  diff.removedNodes.forEach(k => {
+    items.push(`<div class="change-item removed"><span class="change-badge removed">-NODE</span>${escHtml(k)}</div>`);
+  });
+  if (!items.length) {
+    return `<div class="changes-strip" style="border-color:rgba(90,86,128,0.2);background:transparent;">
+      <div class="change-item" style="color:var(--text3);">No changes — KG unchanged (ambiguous input)</div>
+    </div>`;
+  }
+  return `<div class="changes-strip">${items.join('')}</div>`;
+}
+
+// ════════════════════════════════════════════════════════════
+// GRAPH VISUALIZATION
+// ════════════════════════════════════════════════════════════
+
+const NODE_COLORS = {
+  Person:       { fill:'#7c6fff', stroke:'#a896ff', text:'#e8e6ff' },
+  Organization: { fill:'#22d3ee', stroke:'#67e8f9', text:'#0a1a20' },
+  Location:     { fill:'#4ade80', stroke:'#86efac', text:'#052e16' },
+  Concept:      { fill:'#fbbf24', stroke:'#fde68a', text:'#1c0a00' },
+  Unknown:      { fill:'#5a5680', stroke:'#7c78a8', text:'#e8e6ff' },
+};
+
+let nodePositions = {};
+let dragNode = null, dragOffset = {x:0, y:0};
+
+function renderGraph() {
+  const svg = document.getElementById('graph-svg');
+  const edgesG = document.getElementById('graph-edges');
+  const nodesG = document.getElementById('graph-nodes');
+  const empty  = document.getElementById('graph-empty');
+
+  const entities = Object.entries(KG.entities);
+  const relations = KG.relations;
+
+  if (entities.length === 0) {
+    empty.style.display = 'flex';
+    edgesG.innerHTML = '';
+    nodesG.innerHTML = '';
+    return;
+  }
+  empty.style.display = 'none';
+
+  const W = svg.clientWidth || 380;
+  const H = svg.clientHeight || 320;
+
+  // Assign positions for new nodes via force-like layout
+  entities.forEach(([key, ent], i) => {
+    if (!nodePositions[key]) {
+      const angle = (i / Math.max(entities.length, 1)) * 2 * Math.PI - Math.PI/2;
+      const radius = Math.min(W, H) * 0.32;
+      nodePositions[key] = {
+        x: W/2 + radius * Math.cos(angle),
+        y: H/2 + radius * Math.sin(angle)
+      };
+    }
+  });
+
+  // Edges
+  edgesG.innerHTML = '';
+  relations.forEach(rel => {
+    const sp = nodePositions[rel.source];
+    const tp = nodePositions[rel.target];
+    if (!sp || !tp) return;
+
+    const dx = tp.x - sp.x, dy = tp.y - sp.y;
+    const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+    const r = 22;
+    const ex = tp.x - (dx/dist)*r;
+    const ey = tp.y - (dy/dist)*r;
+    const sx = sp.x + (dx/dist)*r;
+    const sy = sp.y + (dy/dist)*r;
+
+    // Slightly curved path
+    const mx = (sx+ex)/2 - dy*0.12;
+    const my = (sy+ey)/2 + dx*0.12;
+
+    const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('d', `M${sx},${sy} Q${mx},${my} ${ex},${ey}`);
+    path.setAttribute('fill','none');
+    path.setAttribute('stroke', rel.isNew ? '#7c6fff' : 'rgba(120,110,255,0.35)');
+    path.setAttribute('stroke-width', rel.isNew ? '1.5' : '1');
+    path.setAttribute('marker-end','url(#garrow)');
+    edgesG.appendChild(path);
+
+    // Edge label
+    const lx = (sx+mx+ex)/3;
+    const ly = (sy+my+ey)/3 - 6;
+    const label = document.createElementNS('http://www.w3.org/2000/svg','text');
+    label.setAttribute('x', lx);
+    label.setAttribute('y', ly);
+    label.setAttribute('text-anchor','middle');
+    label.setAttribute('font-size','9');
+    label.setAttribute('font-family','JetBrains Mono, monospace');
+    label.setAttribute('fill', 'rgba(148,144,192,0.8)');
+    label.textContent = rel.relation.replace(/_/g,' ');
+    edgesG.appendChild(label);
+  });
+
+  // Nodes
+  nodesG.innerHTML = '';
+  entities.forEach(([key, ent]) => {
+    const pos = nodePositions[key] || {x: W/2, y: H/2};
+    const colors = NODE_COLORS[ent.type] || NODE_COLORS.Unknown;
+    const isNew = ent.isNew;
+
+    const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.setAttribute('transform', `translate(${pos.x},${pos.y})`);
+    g.style.cursor = 'grab';
+    if (isNew) g.classList.add('new-node');
+
+    // Outer glow ring for new nodes
+    if (isNew) {
+      const ring = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      ring.setAttribute('r','28');
+      ring.setAttribute('fill','none');
+      ring.setAttribute('stroke', colors.stroke);
+      ring.setAttribute('stroke-width','0.5');
+      ring.setAttribute('opacity','0.4');
+      g.appendChild(ring);
+    }
+
+    const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    circle.setAttribute('r','20');
+    circle.setAttribute('fill', colors.fill);
+    circle.setAttribute('stroke', colors.stroke);
+    circle.setAttribute('stroke-width', isNew ? '1.5' : '0.5');
+    circle.setAttribute('fill-opacity', '0.85');
+    g.appendChild(circle);
+
+    const text = document.createElementNS('http://www.w3.org/2000/svg','text');
+    text.setAttribute('text-anchor','middle');
+    text.setAttribute('dominant-baseline','central');
+    text.setAttribute('font-size','10');
+    text.setAttribute('font-family','Space Grotesk, sans-serif');
+    text.setAttribute('font-weight','600');
+    text.setAttribute('fill', colors.text);
+    text.textContent = ent.name.length > 8 ? ent.name.slice(0,7)+'…' : ent.name;
+    g.appendChild(text);
+
+    const typeLabel = document.createElementNS('http://www.w3.org/2000/svg','text');
+    typeLabel.setAttribute('y','30');
+    typeLabel.setAttribute('text-anchor','middle');
+    typeLabel.setAttribute('font-size','8');
+    typeLabel.setAttribute('font-family','Space Grotesk, sans-serif');
+    typeLabel.setAttribute('fill','rgba(148,144,192,0.7)');
+    typeLabel.textContent = ent.type;
+    g.appendChild(typeLabel);
+
+    // Drag
+    g.addEventListener('mousedown', e => {
+      dragNode = key;
+      const rect = svg.getBoundingClientRect();
+      dragOffset = {
+        x: e.clientX - rect.left - pos.x,
+        y: e.clientY - rect.top  - pos.y
+      };
+      g.style.cursor = 'grabbing';
+      e.preventDefault();
+    });
+
+    nodesG.appendChild(g);
+  });
+}
+
+document.addEventListener('mousemove', e => {
+  if (!dragNode) return;
+  const svg = document.getElementById('graph-svg');
+  const rect = svg.getBoundingClientRect();
+  nodePositions[dragNode] = {
+    x: e.clientX - rect.left - dragOffset.x,
+    y: e.clientY - rect.top  - dragOffset.y
+  };
+  renderGraph();
+});
+
+document.addEventListener('mouseup', () => {
+  if (dragNode) {
+    dragNode = null;
+    document.querySelectorAll('#graph-nodes g').forEach(g => g.style.cursor='grab');
+  }
+});
+
+function updateKGList() {
+  const body = document.getElementById('kg-list-body');
+  const entities = Object.values(KG.entities);
+  const relations = KG.relations;
+
+  if (entities.length === 0) {
+    body.innerHTML = '<div style="color:var(--text3); font-size:12px; padding:8px 0;">No data yet</div>';
+    return;
+  }
+
+  let html = '';
+  if (entities.length) {
+    entities.forEach(e => {
+      html += `<div class="entity-row">
+        <span class="entity-name">${escHtml(e.name)}</span>
+        <span class="entity-type ${e.type}">${e.type}</span>
+      </div>`;
+    });
+  }
+  if (relations.length) {
+    html += `<div style="margin-top:8px; margin-bottom:4px; font-size:10px; font-weight:600; letter-spacing:.8px; text-transform:uppercase; color:var(--text3);">Relations</div>`;
+    relations.forEach(r => {
+      const sn = KG.entities[r.source]?.name || r.source;
+      const tn = KG.entities[r.target]?.name || r.target;
+      html += `<div class="edge-row">
+        <span class="edge-subject">${escHtml(sn)}</span>
+        <span class="edge-rel">→ ${escHtml(r.relation)} →</span>
+        <span class="edge-object">${escHtml(tn)}</span>
+      </div>`;
+    });
+  }
+  body.innerHTML = html;
+}
+
+function updateStats() {
+  document.getElementById('stat-nodes').textContent = Object.keys(KG.entities).length;
+  document.getElementById('stat-edges').textContent = KG.relations.length;
+  document.getElementById('stat-turns').textContent = turnCount;
+}
+
+// ════════════════════════════════════════════════════════════
+// UI HELPERS
+// ════════════════════════════════════════════════════════════
+
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+  document.getElementById('input-count').textContent = el.value.length + ' chars';
+}
+
+function tryDemo(text) {
+  document.getElementById('user-input').value = text;
+  sendMessage();
+}
+
+function clearAll() {
+  KG.entities = {};
+  KG.relations = [];
+  nodePositions = {};
+  conversationHistory = [];
+  turnCount = 0;
+
+  const chat = document.getElementById('chat-messages');
+  chat.innerHTML = `
+    <div class="welcome" id="welcome">
+      <div class="welcome-icon">🧠</div>
+      <h2>Knowledge Graph Chatbot</h2>
+      <p>Tell me about people, places, and their relationships. I'll build a knowledge graph from our conversation and detect ambiguities before updating memory.</p>
+      <div class="demo-pills">
+        <button class="demo-pill" onclick="tryDemo('John works at Google')">John works at Google</button>
+        <button class="demo-pill" onclick="tryDemo('He likes AI')">He likes AI</button>
+        <button class="demo-pill" onclick="tryDemo('He works there as a researcher')">He works there as a researcher</button>
+        <button class="demo-pill" onclick="tryDemo('Sarah founded OpenAI')">Sarah founded OpenAI</button>
+        <button class="demo-pill" onclick="tryDemo('Alice lives in San Francisco')">Alice lives in San Francisco</button>
+        <button class="demo-pill" onclick="runFullDemo()">▶ Run Full Demo</button>
+      </div>
+    </div>`;
+
+  renderGraph();
+  updateKGList();
+  updateStats();
+}
+
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ════════════════════════════════════════════════════════════
+// DEMO SEQUENCE
+// ════════════════════════════════════════════════════════════
+
+async function runFullDemo() {
+  clearAll();
+  const steps = [
+    'John works at Google',
+    'He likes AI',
+    'He works there as a researcher',
+    'Sarah founded OpenAI',
+    'Alice lives in San Francisco and works at Anthropic',
+    'She is interested in machine learning',
+    'Bob works there too',
+  ];
+
+  for (const step of steps) {
+    await new Promise(r => setTimeout(r, 600));
+    await processAndRender(step);
+    await new Promise(r => setTimeout(r, 800));
+  }
+}
+
+// Init
+renderGraph();
+updateKGList();
+updateStats();
 </script>
 </body>
 </html>
