@@ -1,736 +1,2285 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>KG Mind — Knowledge Graph Chatbot</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<style>
-:root {
-  --bg: #0a0a0f;
-  --surface: #12121a;
-  --surface2: #1a1a25;
-  --surface3: #22223a;
-  --border: rgba(120,110,255,0.15);
-  --border2: rgba(120,110,255,0.28);
-  --text: #e8e6ff;
-  --text2: #9490c0;
-  --text3: #5a5680;
-  --accent: #7c6fff;
-  --accent2: #a896ff;
-  --green: #4ade80;
-  --green-dim: rgba(74,222,128,0.15);
-  --amber: #fbbf24;
-  --amber-dim: rgba(251,191,36,0.12);
-  --red: #f87171;
-  --red-dim: rgba(248,113,113,0.12);
-  --teal: #22d3ee;
-  --teal-dim: rgba(34,211,238,0.12);
-  --mono: 'JetBrains Mono', monospace;
-}
-
-* { box-sizing: border-box; margin: 0; padding: 0; }
-
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: 'Space Grotesk', sans-serif;
-  font-size: 14px;
-  line-height: 1.6;
-  height: 100vh;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-/* ── Header ── */
-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 24px;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
-  flex-shrink: 0;
-  z-index: 10;
-}
-
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 16px;
-  font-weight: 600;
-  letter-spacing: -0.3px;
-}
-
-.logo-icon {
-  width: 28px; height: 28px;
-  background: linear-gradient(135deg, #7c6fff, #a896ff);
-  border-radius: 8px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 14px;
-}
-
-.header-stats {
-  display: flex; gap: 20px;
-}
-
-.stat-pill {
-  display: flex; align-items: center; gap: 6px;
-  font-size: 12px; color: var(--text2);
-  background: var(--surface2); border: 1px solid var(--border);
-  padding: 4px 10px; border-radius: 20px;
-}
-
-.stat-pill strong { color: var(--text); font-weight: 600; }
-
-.clear-btn {
-  font-size: 12px; color: var(--text3); background: none;
-  border: 1px solid var(--border); padding: 4px 10px;
-  border-radius: 6px; cursor: pointer; font-family: inherit;
-  transition: all 0.15s;
-}
-.clear-btn:hover { color: var(--text2); border-color: var(--border2); }
-
-/* ── Main layout ── */
-.main {
-  display: grid;
-  grid-template-columns: 1fr 380px;
-  flex: 1;
-  overflow: hidden;
-}
-
-/* ── Chat panel ── */
-.chat-panel {
-  display: flex; flex-direction: column; overflow: hidden;
-  border-right: 1px solid var(--border);
-}
-
-.chat-messages {
-  flex: 1; overflow-y: auto; padding: 20px;
-  display: flex; flex-direction: column; gap: 16px;
-  scroll-behavior: smooth;
-}
-
-.chat-messages::-webkit-scrollbar { width: 4px; }
-.chat-messages::-webkit-scrollbar-track { background: transparent; }
-.chat-messages::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
-
-/* Welcome state */
-.welcome {
-  flex: 1; display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  text-align: center; padding: 40px; gap: 16px;
-  opacity: 0.7;
-}
-
-.welcome-icon { font-size: 48px; margin-bottom: 4px; }
-.welcome h2 { font-size: 20px; font-weight: 600; color: var(--text); }
-.welcome p { color: var(--text2); max-width: 340px; line-height: 1.7; }
-
-.demo-pills {
-  display: flex; flex-wrap: wrap; gap: 8px;
-  justify-content: center; margin-top: 8px;
-}
-
-.demo-pill {
-  background: var(--surface2); border: 1px solid var(--border2);
-  color: var(--accent2); padding: 6px 14px; border-radius: 20px;
-  font-size: 12px; cursor: pointer; transition: all 0.15s;
-  font-family: inherit;
-}
-.demo-pill:hover { background: var(--surface3); border-color: var(--accent); color: var(--text); }
-
-/* Message bubbles */
-.msg {
-  display: flex; gap: 10px; align-items: flex-start;
-}
-
-.msg-avatar {
-  width: 28px; height: 28px; border-radius: 8px;
-  flex-shrink: 0; display: flex; align-items: center; justify-content: center;
-  font-size: 12px; font-weight: 600;
-}
-
-.msg.user .msg-avatar {
-  background: linear-gradient(135deg, #22d3ee22, #22d3ee44);
-  border: 1px solid rgba(34,211,238,0.3); color: var(--teal);
-}
-
-.msg.bot .msg-avatar {
-  background: linear-gradient(135deg, #7c6fff22, #a896ff33);
-  border: 1px solid rgba(124,111,255,0.3); color: var(--accent2);
-}
-
-.msg-body { flex: 1; min-width: 0; }
-
-.msg-role {
-  font-size: 11px; color: var(--text3); font-weight: 500;
-  margin-bottom: 4px; letter-spacing: 0.5px; text-transform: uppercase;
-}
-
-.msg.user .msg-content {
-  background: var(--surface2); border: 1px solid rgba(34,211,238,0.2);
-  padding: 10px 14px; border-radius: 4px 12px 12px 12px;
-  color: var(--text);
-}
-
-/* Bot response blocks */
-.bot-response { display: flex; flex-direction: column; gap: 8px; }
-
-.response-card {
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: 4px 12px 12px 12px; overflow: hidden;
-}
-
-.response-section {
-  padding: 10px 14px; border-bottom: 1px solid var(--border);
-}
-.response-section:last-child { border-bottom: none; }
-
-.section-label {
-  font-size: 10px; font-weight: 600; letter-spacing: 1px;
-  text-transform: uppercase; margin-bottom: 6px; display: flex;
-  align-items: center; gap: 6px;
-}
-
-.section-label.reply { color: var(--accent2); }
-.section-label.ambig { color: var(--amber); }
-.section-label.clarify { color: var(--red); }
-.section-label.kg { color: var(--green); }
-
-.section-text { color: var(--text); line-height: 1.6; font-size: 14px; }
-
-/* Ambiguity meter */
-.ambig-row {
-  display: flex; align-items: center; gap: 10px; margin-top: 6px;
-}
-
-.score-bar-wrap {
-  flex: 1; height: 6px; background: var(--surface3);
-  border-radius: 3px; overflow: hidden;
-}
-
-.score-bar {
-  height: 100%; border-radius: 3px;
-  transition: width 0.4s ease;
-}
-
-.score-bar.low { background: var(--green); }
-.score-bar.mid { background: var(--amber); }
-.score-bar.high { background: var(--red); }
-
-.score-value {
-  font-family: var(--mono); font-size: 12px; font-weight: 500;
-  min-width: 36px; text-align: right;
-}
-
-.score-value.low { color: var(--green); }
-.score-value.mid { color: var(--amber); }
-.score-value.high { color: var(--red); }
-
-.type-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
-
-.type-tag {
-  font-size: 10px; font-weight: 500; padding: 2px 8px;
-  border-radius: 4px; letter-spacing: 0.3px;
-}
-
-.type-tag.missing { background: rgba(248,113,113,0.15); color: #f87171; }
-.type-tag.unclear { background: rgba(251,191,36,0.15); color: #fbbf24; }
-.type-tag.multiple { background: rgba(124,111,255,0.15); color: #a896ff; }
-.type-tag.unspecified { background: rgba(34,211,238,0.15); color: #22d3ee; }
-
-/* Clarification questions */
-.clarify-list { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
-
-.clarify-item {
-  display: flex; align-items: flex-start; gap: 8px;
-  color: var(--text); padding: 6px 10px;
-  background: rgba(248,113,113,0.06); border-left: 2px solid var(--red);
-  border-radius: 0 6px 6px 0; font-size: 13px;
-}
-
-/* KG snapshot */
-.kg-diff {
-  display: grid; grid-template-columns: 1fr 1fr;
-  gap: 8px; margin-top: 4px;
-}
-
-.kg-panel { padding: 8px 10px; border-radius: 8px; }
-.kg-panel.before { background: rgba(90,86,128,0.12); border: 1px solid rgba(90,86,128,0.25); }
-.kg-panel.after  { background: rgba(74,222,128,0.06); border: 1px solid rgba(74,222,128,0.2); }
-
-.kg-panel-label {
-  font-size: 10px; font-weight: 600; letter-spacing: 0.8px;
-  text-transform: uppercase; margin-bottom: 6px;
-}
-
-.kg-panel.before .kg-panel-label { color: var(--text3); }
-.kg-panel.after  .kg-panel-label { color: var(--green); }
-
-.kg-code {
-  font-family: var(--mono); font-size: 11px; line-height: 1.8;
-  color: var(--text2); white-space: pre;
-}
-
-.kg-code .node-line { color: var(--accent2); }
-.kg-code .edge-line { color: var(--teal); }
-.kg-code .new-node  { color: var(--green); }
-.kg-code .new-edge  { color: var(--green); }
-
-.changes-strip {
-  margin-top: 6px; padding: 6px 10px;
-  background: rgba(74,222,128,0.07); border: 1px solid rgba(74,222,128,0.2);
-  border-radius: 8px;
-}
-
-.change-item {
-  font-family: var(--mono); font-size: 11px; color: var(--green);
-  display: flex; align-items: center; gap: 6px;
-}
-
-.change-item.removed { color: var(--red); }
-.change-badge {
-  font-size: 9px; font-weight: 600; padding: 1px 5px;
-  border-radius: 3px; background: rgba(74,222,128,0.2); color: var(--green);
-}
-.change-badge.removed { background: rgba(248,113,113,0.2); color: var(--red); }
-
-/* ── Input bar ── */
-.input-bar {
-  padding: 16px 20px;
-  border-top: 1px solid var(--border);
-  background: var(--surface);
-  flex-shrink: 0;
-}
-
-.input-row {
-  display: flex; gap: 8px; align-items: flex-end;
-}
-
-#user-input {
-  flex: 1; resize: none;
-  background: var(--surface2); border: 1px solid var(--border2);
-  border-radius: 10px; padding: 10px 14px;
-  color: var(--text); font-family: inherit; font-size: 14px;
-  line-height: 1.5; outline: none;
-  transition: border-color 0.15s;
-  max-height: 120px; min-height: 42px;
-}
-
-#user-input:focus { border-color: var(--accent); }
-#user-input::placeholder { color: var(--text3); }
-
-.send-btn {
-  width: 42px; height: 42px; border-radius: 10px;
-  background: linear-gradient(135deg, #7c6fff, #a896ff);
-  border: none; cursor: pointer; font-size: 16px;
-  display: flex; align-items: center; justify-content: center;
-  transition: all 0.15s; flex-shrink: 0;
-}
-.send-btn:hover { transform: scale(1.05); }
-.send-btn:active { transform: scale(0.97); }
-.send-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
-
-.input-hint {
-  font-size: 11px; color: var(--text3); margin-top: 6px;
-  display: flex; justify-content: space-between;
-}
-
-/* ── Graph panel ── */
-.graph-panel {
-  display: flex; flex-direction: column; overflow: hidden;
-  background: var(--surface);
-}
-
-.panel-header {
-  padding: 14px 18px; border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; justify-content: space-between;
-  flex-shrink: 0;
-}
-
-.panel-title {
-  font-size: 12px; font-weight: 600; letter-spacing: 0.8px;
-  text-transform: uppercase; color: var(--text2);
-  display: flex; align-items: center; gap: 6px;
-}
-
-.live-dot {
-  width: 6px; height: 6px; border-radius: 50%;
-  background: var(--green);
-  animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.5; transform: scale(0.8); }
-}
-
-.graph-canvas-wrap {
-  flex: 1; position: relative; overflow: hidden;
-}
-
-#graph-svg {
-  width: 100%; height: 100%;
-}
-
-.graph-empty {
-  position: absolute; inset: 0;
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  gap: 8px; color: var(--text3); font-size: 13px;
-}
-
-/* KG text list panel */
-.kg-list-panel {
-  border-top: 1px solid var(--border);
-  max-height: 200px; overflow-y: auto;
-  flex-shrink: 0;
-}
-
-.kg-list-panel::-webkit-scrollbar { width: 3px; }
-.kg-list-panel::-webkit-scrollbar-thumb { background: var(--border2); }
-
-.kg-list-header {
-  padding: 8px 18px; font-size: 10px; font-weight: 600;
-  letter-spacing: 0.8px; text-transform: uppercase; color: var(--text3);
-  position: sticky; top: 0; background: var(--surface);
-  border-bottom: 1px solid var(--border);
-}
-
-.kg-list-body { padding: 8px 18px 12px; }
-
-.entity-row {
-  display: flex; align-items: center; gap: 8px;
-  padding: 4px 0; border-bottom: 1px solid var(--border);
-  font-size: 12px;
-}
-
-.entity-row:last-child { border-bottom: none; }
-
-.entity-name { color: var(--text); font-weight: 500; flex: 1; }
-.entity-type {
-  font-size: 10px; font-weight: 600; padding: 1px 7px;
-  border-radius: 4px; text-transform: uppercase; letter-spacing: 0.3px;
-}
-
-.entity-type.Person       { background: rgba(124,111,255,0.15); color: #a896ff; }
-.entity-type.Organization { background: rgba(34,211,238,0.12);  color: #22d3ee; }
-.entity-type.Location     { background: rgba(74,222,128,0.12);  color: #4ade80; }
-.entity-type.Concept      { background: rgba(251,191,36,0.12);  color: #fbbf24; }
-.entity-type.Unknown      { background: rgba(90,86,128,0.15);   color: var(--text3); }
-
-.edge-row {
-  padding: 3px 0; font-family: var(--mono); font-size: 11px;
-  color: var(--text2); display: flex; align-items: center; gap: 6px;
-  border-bottom: 1px solid var(--border);
-}
-.edge-row:last-child { border-bottom: none; }
-.edge-subject { color: var(--accent2); }
-.edge-rel { color: var(--text3); font-size: 10px; }
-.edge-object { color: var(--teal); }
-
-/* Loading dots */
-.loading-dots {
-  display: flex; gap: 4px; align-items: center; padding: 10px 14px;
-}
-
-.loading-dot {
-  width: 5px; height: 5px; border-radius: 50%;
-  background: var(--accent2); opacity: 0.3;
-  animation: dot-bounce 1.4s infinite ease-in-out;
-}
-
-.loading-dot:nth-child(2) { animation-delay: 0.2s; }
-.loading-dot:nth-child(3) { animation-delay: 0.4s; }
-
-@keyframes dot-bounce {
-  0%, 80%, 100% { transform: scale(0.6); opacity: 0.3; }
-  40% { transform: scale(1); opacity: 1; }
-}
-
-/* Graph SVG styles */
-.graph-node-circle { transition: r 0.3s, fill-opacity 0.3s; }
-.graph-node-label { pointer-events: none; }
-.graph-edge-line { transition: opacity 0.3s; }
-
-/* Animations */
-@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-.msg { animation: fadeIn 0.25s ease; }
-
-@keyframes nodeIn { from { transform: scale(0.3); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-.new-node { animation: nodeIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KG Mind — Knowledge Graph Chatbot</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --surface: #12121a;
+      --surface2: #1a1a25;
+      --surface3: #22223a;
+      --border: rgba(120, 110, 255, 0.15);
+      --border2: rgba(120, 110, 255, 0.28);
+      --text: #e8e6ff;
+      --text2: #9490c0;
+      --text3: #5a5680;
+      --accent: #7c6fff;
+      --accent2: #a896ff;
+      --green: #4ade80;
+      --green-dim: rgba(74, 222, 128, 0.15);
+      --amber: #fbbf24;
+      --amber-dim: rgba(251, 191, 36, 0.12);
+      --red: #f87171;
+      --red-dim: rgba(248, 113, 113, 0.12);
+      --teal: #22d3ee;
+      --teal-dim: rgba(34, 211, 238, 0.12);
+      --mono: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 24px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+      z-index: 10;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: -0.3px;
+    }
+
+    .logo-icon {
+      width: 28px;
+      height: 28px;
+      background: linear-gradient(135deg, #7c6fff, #a896ff);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+    }
+
+    .header-stats {
+      display: flex;
+      gap: 20px;
+    }
+
+    .stat-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--text2);
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      padding: 4px 10px;
+      border-radius: 20px;
+    }
+
+    .stat-pill strong {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .clear-btn {
+      font-size: 12px;
+      color: var(--text3);
+      background: none;
+      border: 1px solid var(--border);
+      padding: 4px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.15s;
+    }
+
+    .clear-btn:hover {
+      color: var(--text2);
+      border-color: var(--border2);
+    }
+
+    .main {
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .chat-panel {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      border-right: 1px solid var(--border);
+    }
+
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      scroll-behavior: smooth;
+    }
+
+    .chat-messages::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    .chat-messages::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .chat-messages::-webkit-scrollbar-thumb {
+      background: var(--border2);
+      border-radius: 2px;
+    }
+
+    .welcome {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 40px;
+      gap: 16px;
+      opacity: 0.7;
+    }
+
+    .welcome-icon {
+      font-size: 48px;
+      margin-bottom: 4px;
+    }
+
+    .welcome h2 {
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .welcome p {
+      color: var(--text2);
+      max-width: 340px;
+      line-height: 1.7;
+    }
+
+    .demo-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+      margin-top: 8px;
+    }
+
+    .demo-pill {
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      color: var(--accent2);
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-family: inherit;
+    }
+
+    .demo-pill:hover {
+      background: var(--surface3);
+      border-color: var(--accent);
+      color: var(--text);
+    }
+
+    .msg {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+
+    .msg-avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .msg.user .msg-avatar {
+      background: linear-gradient(135deg, #22d3ee22, #22d3ee44);
+      border: 1px solid rgba(34, 211, 238, 0.3);
+      color: var(--teal);
+    }
+
+    .msg.bot .msg-avatar {
+      background: linear-gradient(135deg, #7c6fff22, #a896ff33);
+      border: 1px solid rgba(124, 111, 255, 0.3);
+      color: var(--accent2);
+    }
+
+    .msg-body {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .msg-role {
+      font-size: 11px;
+      color: var(--text3);
+      font-weight: 500;
+      margin-bottom: 4px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    .msg.user .msg-content {
+      background: var(--surface2);
+      border: 1px solid rgba(34, 211, 238, 0.2);
+      padding: 10px 14px;
+      border-radius: 4px 12px 12px 12px;
+      color: var(--text);
+    }
+
+    .bot-response {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .response-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px 12px 12px 12px;
+      overflow: hidden;
+    }
+
+    .response-card.query-card {
+      border-color: rgba(34, 211, 238, 0.3);
+    }
+
+    .response-card.query-card.clarify-card {
+      border-color: rgba(251, 191, 36, 0.35);
+    }
+
+    .response-section {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .response-section:last-child {
+      border-bottom: none;
+    }
+
+    .section-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .section-label.reply {
+      color: var(--accent2);
+    }
+
+    .section-label.answer {
+      color: var(--teal);
+    }
+
+    .section-label.ambig {
+      color: var(--amber);
+    }
+
+    .section-label.clarify {
+      color: var(--red);
+    }
+
+    .section-label.kg {
+      color: var(--green);
+    }
+
+    .section-label.unknown {
+      color: var(--text3);
+    }
+
+    .section-text {
+      color: var(--text);
+      line-height: 1.6;
+      font-size: 14px;
+    }
+
+    .answer-text {
+      color: var(--text);
+      line-height: 1.6;
+      font-size: 14px;
+      padding: 6px 10px;
+      background: rgba(34, 211, 238, 0.06);
+      border-left: 2px solid var(--teal);
+      border-radius: 0 6px 6px 0;
+    }
+
+    .unknown-text {
+      color: var(--text2);
+      line-height: 1.6;
+      font-size: 14px;
+      padding: 6px 10px;
+      background: rgba(90, 86, 128, 0.1);
+      border-left: 2px solid var(--text3);
+      border-radius: 0 6px 6px 0;
+    }
+
+    .ambig-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 6px;
+    }
+
+    .score-bar-wrap {
+      flex: 1;
+      height: 6px;
+      background: var(--surface3);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .score-bar {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.4s ease;
+    }
+
+    .score-bar.low {
+      background: var(--green);
+    }
+
+    .score-bar.mid {
+      background: var(--amber);
+    }
+
+    .score-bar.high {
+      background: var(--red);
+    }
+
+    .score-value {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 500;
+      min-width: 36px;
+      text-align: right;
+    }
+
+    .score-value.low {
+      color: var(--green);
+    }
+
+    .score-value.mid {
+      color: var(--amber);
+    }
+
+    .score-value.high {
+      color: var(--red);
+    }
+
+    .type-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 6px;
+    }
+
+    .type-tag {
+      font-size: 10px;
+      font-weight: 500;
+      padding: 2px 8px;
+      border-radius: 4px;
+      letter-spacing: 0.3px;
+    }
+
+    .type-tag.missing {
+      background: rgba(248, 113, 113, 0.15);
+      color: #f87171;
+    }
+
+    .type-tag.unclear {
+      background: rgba(251, 191, 36, 0.15);
+      color: #fbbf24;
+    }
+
+    .type-tag.multiple {
+      background: rgba(124, 111, 255, 0.15);
+      color: #a896ff;
+    }
+
+    .type-tag.unspecified {
+      background: rgba(34, 211, 238, 0.15);
+      color: #22d3ee;
+    }
+
+    .clarify-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 4px;
+    }
+
+    .clarify-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      color: var(--text);
+      padding: 6px 10px;
+      background: rgba(248, 113, 113, 0.06);
+      border-left: 2px solid var(--red);
+      border-radius: 0 6px 6px 0;
+      font-size: 13px;
+    }
+
+    .clarify-item.amber {
+      background: rgba(251, 191, 36, 0.06);
+      border-left-color: var(--amber);
+    }
+
+    .kg-diff {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .kg-panel {
+      padding: 8px 10px;
+      border-radius: 8px;
+    }
+
+    .kg-panel.before {
+      background: rgba(90, 86, 128, 0.12);
+      border: 1px solid rgba(90, 86, 128, 0.25);
+    }
+
+    .kg-panel.after {
+      background: rgba(74, 222, 128, 0.06);
+      border: 1px solid rgba(74, 222, 128, 0.2);
+    }
+
+    .kg-panel-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
+    .kg-panel.before .kg-panel-label {
+      color: var(--text3);
+    }
+
+    .kg-panel.after .kg-panel-label {
+      color: var(--green);
+    }
+
+    .kg-code {
+      font-family: var(--mono);
+      font-size: 11px;
+      line-height: 1.8;
+      color: var(--text2);
+      white-space: pre;
+    }
+
+    .kg-code .node-line {
+      color: var(--accent2);
+    }
+
+    .kg-code .edge-line {
+      color: var(--teal);
+    }
+
+    .kg-code .new-node {
+      color: var(--green);
+    }
+
+    .kg-code .new-edge {
+      color: var(--green);
+    }
+
+    .changes-strip {
+      margin-top: 6px;
+      padding: 6px 10px;
+      background: rgba(74, 222, 128, 0.07);
+      border: 1px solid rgba(74, 222, 128, 0.2);
+      border-radius: 8px;
+    }
+
+    .change-item {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--green);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .change-item.removed {
+      color: var(--red);
+    }
+
+    .change-badge {
+      font-size: 9px;
+      font-weight: 600;
+      padding: 1px 5px;
+      border-radius: 3px;
+      background: rgba(74, 222, 128, 0.2);
+      color: var(--green);
+    }
+
+    .change-badge.removed {
+      background: rgba(248, 113, 113, 0.2);
+      color: var(--red);
+    }
+
+    .input-bar {
+      padding: 16px 20px;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 8px;
+      align-items: flex-end;
+    }
+
+    #user-input {
+      flex: 1;
+      resize: none;
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      border-radius: 10px;
+      padding: 10px 14px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 14px;
+      line-height: 1.5;
+      outline: none;
+      transition: border-color 0.15s;
+      max-height: 120px;
+      min-height: 42px;
+    }
+
+    #user-input:focus {
+      border-color: var(--accent);
+    }
+
+    #user-input::placeholder {
+      color: var(--text3);
+    }
+
+    .send-btn {
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #7c6fff, #a896ff);
+      border: none;
+      cursor: pointer;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+      flex-shrink: 0;
+    }
+
+    .send-btn:hover {
+      transform: scale(1.05);
+    }
+
+    .send-btn:active {
+      transform: scale(0.97);
+    }
+
+    .send-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .input-hint {
+      font-size: 11px;
+      color: var(--text3);
+      margin-top: 6px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .graph-panel {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: var(--surface);
+    }
+
+    .panel-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    .panel-title {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: var(--text2);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .live-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--green);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+
+      50% {
+        opacity: 0.5;
+        transform: scale(0.8);
+      }
+    }
+
+    .graph-canvas-wrap {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+
+    #graph-svg {
+      width: 100%;
+      height: 100%;
+    }
+
+    .graph-empty {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      color: var(--text3);
+      font-size: 13px;
+    }
+
+    .kg-list-panel {
+      border-top: 1px solid var(--border);
+      max-height: 200px;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+
+    .kg-list-panel::-webkit-scrollbar {
+      width: 3px;
+    }
+
+    .kg-list-panel::-webkit-scrollbar-thumb {
+      background: var(--border2);
+    }
+
+    .kg-list-header {
+      padding: 8px 18px;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: var(--text3);
+      position: sticky;
+      top: 0;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .kg-list-body {
+      padding: 8px 18px 12px;
+    }
+
+    .entity-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+    }
+
+    .entity-row:last-child {
+      border-bottom: none;
+    }
+
+    .entity-name {
+      color: var(--text);
+      font-weight: 500;
+      flex: 1;
+    }
+
+    .entity-type {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 1px 7px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    .entity-type.Person {
+      background: rgba(124, 111, 255, 0.15);
+      color: #a896ff;
+    }
+
+    .entity-type.Organization {
+      background: rgba(34, 211, 238, 0.12);
+      color: #22d3ee;
+    }
+
+    .entity-type.Location {
+      background: rgba(74, 222, 128, 0.12);
+      color: #4ade80;
+    }
+
+    .entity-type.Concept {
+      background: rgba(251, 191, 36, 0.12);
+      color: #fbbf24;
+    }
+
+    .entity-type.Unknown {
+      background: rgba(90, 86, 128, 0.15);
+      color: var(--text3);
+    }
+
+    .edge-row {
+      padding: 3px 0;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text2);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .edge-row:last-child {
+      border-bottom: none;
+    }
+
+    .edge-subject {
+      color: var(--accent2);
+    }
+
+    .edge-rel {
+      color: var(--text3);
+      font-size: 10px;
+    }
+
+    .edge-object {
+      color: var(--teal);
+    }
+
+    .loading-dots {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+      padding: 10px 14px;
+    }
+
+    .loading-dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--accent2);
+      opacity: 0.3;
+      animation: dot-bounce 1.4s infinite ease-in-out;
+    }
+
+    .loading-dot:nth-child(2) {
+      animation-delay: 0.2s;
+    }
+
+    .loading-dot:nth-child(3) {
+      animation-delay: 0.4s;
+    }
+
+    @keyframes dot-bounce {
+
+      0%,
+      80%,
+      100% {
+        transform: scale(0.6);
+        opacity: 0.3;
+      }
+
+      40% {
+        transform: scale(1);
+        opacity: 1;
+      }
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(6px);
+      }
+
+      to {
+        opacity: 1;
+        transform: none;
+      }
+    }
+
+    .msg {
+      animation: fadeIn 0.25s ease;
+    }
+
+    @keyframes nodeIn {
+      from {
+        transform: scale(0.3);
+        opacity: 0;
+      }
+
+      to {
+        transform: scale(1);
+        opacity: 1;
+      }
+    }
+
+    .new-node {
+      animation: nodeIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    }
+  </style>
 </head>
+
 <body>
 
-<header>
-  <div class="logo">
-    <div class="logo-icon">🧠</div>
-    KG Mind
-  </div>
-  <div class="header-stats">
-    <div class="stat-pill">Nodes: <strong id="stat-nodes">0</strong></div>
-    <div class="stat-pill">Edges: <strong id="stat-edges">0</strong></div>
-    <div class="stat-pill">Turns: <strong id="stat-turns">0</strong></div>
-  </div>
-  <button class="clear-btn" onclick="clearAll()">↺ Reset</button>
-</header>
+  <header>
+    <div class="logo">
+      <div class="logo-icon">🧠</div>
+      KG Mind
+    </div>
+    <div class="header-stats">
+      <div class="stat-pill">Nodes: <strong id="stat-nodes">0</strong></div>
+      <div class="stat-pill">Edges: <strong id="stat-edges">0</strong></div>
+      <div class="stat-pill">Turns: <strong id="stat-turns">0</strong></div>
+    </div>
+    <button class="clear-btn" onclick="clearAll()">↺ Reset</button>
+  </header>
 
-<div class="main">
-  <!-- Chat panel -->
-  <div class="chat-panel">
-    <div class="chat-messages" id="chat-messages">
-      <div class="welcome" id="welcome">
-        <div class="welcome-icon">🧠</div>
-        <h2>Knowledge Graph Chatbot</h2>
-        <p>Tell me about people, places, and their relationships. I'll build a knowledge graph from our conversation and detect ambiguities before updating memory.</p>
-        <div class="demo-pills">
-          <button class="demo-pill" onclick="tryDemo('John works at Google')">John works at Google</button>
-          <button class="demo-pill" onclick="tryDemo('He likes AI')">He likes AI</button>
-          <button class="demo-pill" onclick="tryDemo('He works there as a researcher')">He works there as a researcher</button>
-          <button class="demo-pill" onclick="tryDemo('Sarah founded OpenAI')">Sarah founded OpenAI</button>
-          <button class="demo-pill" onclick="tryDemo('Alice lives in San Francisco')">Alice lives in San Francisco</button>
-          <button class="demo-pill" onclick="runFullDemo()">▶ Run Full Demo</button>
+  <div class="main">
+    <div class="chat-panel">
+      <div class="chat-messages" id="chat-messages">
+        <div class="welcome" id="welcome">
+          <div class="welcome-icon">🧠</div>
+          <h2>Knowledge Graph Chatbot</h2>
+          <p>Tell me about people, places, and their relationships. I'll build a knowledge graph from our conversation
+            and detect ambiguities before updating memory.</p>
+          <div class="demo-pills">
+            <button class="demo-pill" onclick="tryDemo('John works at Google')">John works at Google</button>
+            <button class="demo-pill" onclick="tryDemo('He likes AI')">He likes AI</button>
+            <button class="demo-pill" onclick="tryDemo('He works there as a researcher')">He works there as a
+              researcher</button>
+            <button class="demo-pill" onclick="tryDemo('Sarah founded OpenAI')">Sarah founded OpenAI</button>
+            <button class="demo-pill" onclick="tryDemo('Alice lives in San Francisco')">Alice lives in San
+              Francisco</button>
+            <button class="demo-pill" onclick="runFullDemo()">▶ Run Full Demo</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="input-bar">
+        <div class="input-row">
+          <textarea id="user-input" placeholder="Tell me about a person, place, or relationship…" rows="1"
+            onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+          <button class="send-btn" id="send-btn" onclick="sendMessage()" title="Send">→</button>
+        </div>
+        <div class="input-hint">
+          <span>Press Enter to send, Shift+Enter for newline</span>
+          <span id="input-count">0 chars</span>
         </div>
       </div>
     </div>
 
-    <div class="input-bar">
-      <div class="input-row">
-        <textarea id="user-input" placeholder="Tell me about a person, place, or relationship…" rows="1" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
-        <button class="send-btn" id="send-btn" onclick="sendMessage()" title="Send">→</button>
+    <div class="graph-panel">
+      <div class="panel-header">
+        <div class="panel-title">
+          <div class="live-dot"></div>
+          Live Knowledge Graph
+        </div>
       </div>
-      <div class="input-hint">
-        <span>Press Enter to send, Shift+Enter for newline</span>
-        <span id="input-count">0 chars</span>
-      </div>
-    </div>
-  </div>
 
-  <!-- Graph panel -->
-  <div class="graph-panel">
-    <div class="panel-header">
-      <div class="panel-title">
-        <div class="live-dot"></div>
-        Live Knowledge Graph
+      <div class="graph-canvas-wrap">
+        <svg id="graph-svg">
+          <defs>
+            <marker id="garrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+              <path d="M1 1L9 5L1 9" fill="none" stroke="rgba(120,110,255,0.5)" stroke-width="1.5"
+                stroke-linecap="round" />
+            </marker>
+          </defs>
+          <g id="graph-edges"></g>
+          <g id="graph-nodes"></g>
+        </svg>
+        <div class="graph-empty" id="graph-empty">
+          <span style="font-size:32px">○</span>
+          <span>Graph empty — start chatting</span>
+        </div>
       </div>
-    </div>
 
-    <div class="graph-canvas-wrap">
-      <svg id="graph-svg">
-        <defs>
-          <marker id="garrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto">
-            <path d="M1 1L9 5L1 9" fill="none" stroke="rgba(120,110,255,0.5)" stroke-width="1.5" stroke-linecap="round"/>
-          </marker>
-        </defs>
-        <g id="graph-edges"></g>
-        <g id="graph-nodes"></g>
-      </svg>
-      <div class="graph-empty" id="graph-empty">
-        <span style="font-size:32px">○</span>
-        <span>Graph empty — start chatting</span>
-      </div>
-    </div>
-
-    <div class="kg-list-panel">
-      <div class="kg-list-header">Entities & Relations</div>
-      <div class="kg-list-body" id="kg-list-body">
-        <div style="color:var(--text3); font-size:12px; padding:8px 0;">No data yet</div>
+      <div class="kg-list-panel">
+        <div class="kg-list-header">Entities & Relations</div>
+        <div class="kg-list-body" id="kg-list-body">
+          <div style="color:var(--text3); font-size:12px; padding:8px 0;">No data yet</div>
+        </div>
       </div>
     </div>
   </div>
-</div>
 
-<!-- ======================= FIXED JS BLOCK (DROP-IN REPLACEMENT) ======================= -->
+  <script>
+    // ════════════════════════════════════════════════════════════
+    // KNOWLEDGE GRAPH ENGINE
+    // ════════════════════════════════════════════════════════════
 
-<script>
+    const KG = {
+      entities: {},
+      relations: [],
 
-// ===================== NER (BACKEND + FALLBACK + MAPPING) =====================
+      canonical(name) { return name.trim().toLowerCase(); },
 
-async function extractEntities(text) {
-  try {
-    const res = await fetch("http://127.0.0.1:5000/extract", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
+      addEntity(name, type, confidence = 1.0, gender = null) {
+        const key = this.canonical(name);
+        if (!this.entities[key]) {
+          this.entities[key] = {
+            name: name.trim(), type, confidence,
+            aliases: [], isNew: true,
+            gender: gender || inferGender(name.trim())
+          };
+        } else {
+          this.entities[key].confidence = Math.max(this.entities[key].confidence, confidence);
+          this.entities[key].isNew = false;
+          if (gender && !this.entities[key].gender) this.entities[key].gender = gender;
+        }
+        return key;
       },
-      body: JSON.stringify({ text })
+
+      addRelation(src, rel, tgt, confidence = 1.0) {
+        const s = this.canonical(src), t = this.canonical(tgt);
+        if (!this.entities[s] || !this.entities[t]) return;
+        for (const r of this.relations) {
+          if (this.canonical(r.source) === s && r.relation === rel && this.canonical(r.target) === t) {
+            r.confidence = Math.max(r.confidence, confidence);
+            return;
+          }
+        }
+        this.relations.push({ source: s, relation: rel, target: t, confidence, isNew: true });
+      },
+
+      snapshot() {
+        return {
+          nodes: JSON.parse(JSON.stringify(this.entities)),
+          edges: JSON.parse(JSON.stringify(this.relations))
+        };
+      },
+
+      clearNewFlags() {
+        Object.values(this.entities).forEach(e => e.isNew = false);
+        this.relations.forEach(r => r.isNew = false);
+      }
+    };
+
+    // ════════════════════════════════════════════════════════════
+    // GENDER INFERENCE
+    // ════════════════════════════════════════════════════════════
+
+    const MALE_NAMES = new Set([
+      'john', 'bob', 'charlie', 'david', 'frank', 'george', 'ivan',
+      'kevin', 'mike', 'oliver', 'paul', 'sam', 'tom', 'victor',
+      'xander', 'zach', 'james', 'peter', 'mark', 'andrew', 'robert'
+    ]);
+    const FEMALE_NAMES = new Set([
+      'jane', 'alice', 'emma', 'helen', 'julia', 'lisa', 'nancy',
+      'rachel', 'sarah', 'uma', 'wendy', 'yasmine', 'mary', 'linda',
+      'susan', 'jessica', 'emily', 'anna', 'sophia', 'olivia', 'kate'
+    ]);
+
+    function inferGender(name) {
+      const lc = name.toLowerCase();
+      if (MALE_NAMES.has(lc)) return 'male';
+      if (FEMALE_NAMES.has(lc)) return 'female';
+      return null;
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // ENTITY EXTRACTION
+    // ════════════════════════════════════════════════════════════
+
+    const PERSON_NAMES = new Set([
+      'john', 'jane', 'alice', 'bob', 'charlie', 'david', 'emma', 'frank',
+      'george', 'helen', 'ivan', 'julia', 'kevin', 'lisa', 'mike', 'nancy',
+      'oliver', 'paul', 'rachel', 'sam', 'sarah', 'tom', 'uma', 'victor',
+      'wendy', 'xander', 'yasmine', 'zach'
+    ]);
+
+    const ORG_NAMES = new Set([
+      'google', 'microsoft', 'amazon', 'apple', 'meta', 'netflix', 'tesla',
+      'openai', 'anthropic', 'ibm', 'nvidia', 'uber', 'twitter', 'linkedin',
+      'facebook', 'intel', 'oracle', 'salesforce', 'adobe', 'spacex', 'deepmind',
+      'youtube'
+    ]);
+
+    const LOC_NAMES = new Set([
+      'new york', 'london', 'paris', 'tokyo', 'berlin', 'san francisco',
+      'seattle', 'boston', 'chicago', 'los angeles', 'bangalore', 'mumbai',
+      'beijing', 'shanghai', 'toronto', 'sydney', 'dubai', 'singapore', 'austin'
+    ]);
+
+    const CONCEPT_NAMES = new Set([
+      'ai', 'artificial intelligence', 'machine learning', 'deep learning',
+      'nlp', 'natural language processing', 'robotics', 'quantum computing',
+      'blockchain', 'cybersecurity', 'data science', 'cloud computing',
+      'music', 'sports', 'art', 'science', 'technology', 'finance',
+      'programming', 'python', 'javascript', 'pizza', 'eggs', 'food',
+      'chicken'
+    ]);
+
+    const PRONOUNS = /\b(he|she|they|it|him|her|them|his|hers|their|this|that|there|here)\b/gi;
+    const VAGUE_LOCS = /\b(there|here)\b/gi;
+
+    function extractEntities(text) {
+      const tl = text.toLowerCase();
+      const found = [];
+
+      PERSON_NAMES.forEach(n => {
+        if (new RegExp(`\\b${n}\\b`).test(tl))
+          found.push({ name: n.charAt(0).toUpperCase() + n.slice(1), type: 'Person' });
+      });
+      ORG_NAMES.forEach(n => {
+        if (tl.includes(n))
+          found.push({ name: n.charAt(0).toUpperCase() + n.slice(1), type: 'Organization' });
+      });
+      LOC_NAMES.forEach(n => {
+        if (tl.includes(n))
+          found.push({
+            name: n.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+            type: 'Location'
+          });
+      });
+      CONCEPT_NAMES.forEach(n => {
+        if (new RegExp(`\\b${n}\\b`).test(tl))
+          found.push({
+            name: n.toUpperCase() === n ? n : n.charAt(0).toUpperCase() + n.slice(1),
+            type: 'Concept'
+          });
+      });
+
+      return found;
+    }
+
+    function extractRelations(text, entities) {
+      const tl = text.toLowerCase();
+      const triples = [];
+      const patterns = [
+        [/(\w+)\s+works?\s+at\s+(\w+)/g, 'works_at'],
+        [/(\w+)\s+works?\s+for\s+(\w+)/g, 'works_at'],
+        [/(\w+)\s+works?\s+as\s+(?:a\s+)?([\w\s]+?)(?:\s+at\s+\w+)?(?:\s*$|\.)/g, 'has_role'],
+        [/(\w+)\s+lives?\s+in\s+([\w\s]+?)(?:\s*$|\.)/g, 'lives_in'],
+        [/(\w+)\s+likes?\s+([\w\s]+?)(?:\s*$|\.)/g, 'likes'],
+        [/(\w+)\s+loves?\s+([\w\s]+?)(?:\s*$|\.)/g, 'loves'],
+        [/(\w+)\s+founded\s+(\w+)/g, 'founded'],
+        [/(\w+)\s+is\s+(?:a\s+)?(researcher|engineer|manager|director|ceo|founder|developer|scientist)/g, 'has_role'],
+        [/(\w+)\s+is\s+interested\s+in\s+([\w\s]+?)(?:\s*$|\.)/g, 'interested_in'],
+        [/(\w+)\s+is\s+part\s+of\s+(\w+)/g, 'part_of'],
+        [/(\w+)\s+leads?\s+(\w+)/g, 'leads'],
+        [/(\w+)\s+owns?\s+([\w\s]+?)(?:\s*$|\.)/g, 'owns'],
+      ];
+
+      for (const [pat, rel] of patterns) {
+        let m;
+        const rePat = new RegExp(pat.source, 'gi');
+        while ((m = rePat.exec(tl)) !== null) {
+          const s = m[1].trim(), o = m[m.length - 1].trim();
+          if (s && o && s !== o && s.length > 1 && o.length > 1) {
+            triples.push([
+              s.charAt(0).toUpperCase() + s.slice(1),
+              rel,
+              o.charAt(0).toUpperCase() + o.slice(1)
+            ]);
+          }
+        }
+      }
+      return triples;
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // QUESTION DETECTION & QUERY AMBIGUITY  (FIX #1, #2, #3)
+    // ════════════════════════════════════════════════════════════
+
+    // Maps question keywords → relation types to look up.
+    // IMPORTANT: Only include words that carry genuine semantic meaning about
+    // the relation type. Auxiliary verbs like "do"/"does"/"is"/"are" must NOT
+    // be in this map — they appear in every question and would wrongly union all
+    // relation types together (causing "where does John work?" to also return
+    // "likes" edges, for example).
+    const QUESTION_RELATION_MAP = {
+      'work': ['works_at', 'has_role'],
+      'works': ['works_at', 'has_role'],
+      'working': ['works_at', 'has_role'],
+      'worked': ['works_at', 'has_role'],
+      'job': ['works_at', 'has_role'],
+      'employed': ['works_at'],
+      'role': ['has_role'],
+      'position': ['has_role'],
+      'live': ['lives_in'],
+      'lives': ['lives_in'],
+      'living': ['lives_in'],
+      'located': ['lives_in'],
+      'reside': ['lives_in'],
+      'resides': ['lives_in'],
+      'from': ['lives_in', 'born_in'],
+      'found': ['founded'],
+      'founded': ['founded'],
+      'start': ['founded'],
+      'started': ['founded'],
+      'like': ['likes', 'loves', 'interested_in'],
+      'likes': ['likes', 'loves', 'interested_in'],
+      'liked': ['likes', 'loves', 'interested_in'],
+      'enjoy': ['likes', 'loves'],
+      'enjoys': ['likes', 'loves'],
+      'love': ['loves', 'likes'],
+      'loves': ['loves', 'likes'],
+      'interest': ['interested_in', 'likes'],
+      'interests': ['interested_in', 'likes'],
+      'interested': ['interested_in', 'likes'],
+      'into': ['likes', 'interested_in'],
+      'fan': ['likes'],
+      'lead': ['leads'],
+      'leads': ['leads'],
+      'own': ['owns'],
+      'owns': ['owns'],
+      'part': ['part_of'],
+    };
+
+    function isQuestion(text) {
+      const t = text.trim();
+      if (t.endsWith('?')) return true;
+      if (/^(what|where|who|when|how|which|does|do|is|are|can|tell)\b/i.test(t)) return true;
+      return false;
+    }
+
+    // FIX #1: Detect pronoun ambiguity in questions and return a clarification request
+    // FIX #2: Return null facts gracefully when entity has no matching relation
+    // FIX #3: Only return relations of the type the question actually asks about
+    function answerFromKG(text, conversationHistory) {
+      const tl = text.toLowerCase();
+
+      // ── Step 1: Resolve what entity the question is about ──
+      let subjectKey = null;
+      let subjectName = null;
+
+      // Check for explicit entity names first
+      for (const key of Object.keys(KG.entities)) {
+        const ent = KG.entities[key];
+        if (new RegExp(`\\b${escapeRegex(ent.name.toLowerCase())}\\b`).test(tl)) {
+          subjectKey = key;
+          subjectName = ent.name;
+          break;
+        }
+      }
+
+      // If no explicit name, try pronoun resolution — but check for ambiguity first
+      if (!subjectKey) {
+        const pronounMatches = [...text.matchAll(PRONOUNS)].map(m => m[0].toLowerCase());
+        for (const p of pronounMatches) {
+          // FIX #1: Check for ambiguity before resolving
+          const ambigResult = checkPronounAmbiguityForQuery(p);
+          if (ambigResult) {
+            // Return a special object signalling the query is ambiguous
+            return { type: 'ambiguous', message: ambigResult };
+          }
+          const resolved = resolvePronoun(p, conversationHistory);
+          if (resolved) {
+            subjectKey = KG.canonical(resolved);
+            subjectName = resolved;
+            break;
+          }
+        }
+      }
+
+      if (!subjectKey || !KG.entities[subjectKey]) return { type: 'unknown', message: "I don't have enough information in the knowledge graph to answer that yet." };
+
+      // ── Step 2: Determine which relation types the question asks about ──
+      const words = tl.replace(/[^a-z\s]/g, '').split(/\s+/);
+      const wantedRels = new Set();
+      for (const word of words) {
+        if (QUESTION_RELATION_MAP[word]) {
+          QUESTION_RELATION_MAP[word].forEach(r => wantedRels.add(r));
+        }
+      }
+
+      // ── Step 3: Find matching relations ──
+      const allRels = KG.relations.filter(r =>
+        r.source === subjectKey || r.target === subjectKey
+      );
+
+      // FIX #3: Always filter by wantedRels if we know what was asked.
+      // Do NOT fall back to "all relations" — that caused irrelevant answers.
+      const matchedRels = wantedRels.size > 0
+        ? allRels.filter(r => wantedRels.has(r.relation))
+        : allRels;
+
+      // FIX #2: If no matching facts, say so explicitly — don't return unrelated facts
+      if (matchedRels.length === 0) {
+        const ent = KG.entities[subjectKey];
+        return {
+          type: 'not_found',
+          message: `I have ${subjectName} in the graph, but I don't have that specific information about them yet.`
+        };
+      }
+
+      // Build answer sentences from matching relations only
+      const answers = matchedRels.map(r => formatRelationAsText(r, subjectKey)).filter(Boolean);
+      if (answers.length === 0) return { type: 'not_found', message: `I have ${subjectName} in the graph but couldn't format an answer for that question.` };
+
+      return { type: 'answer', message: answers.join('. ') + '.' };
+    }
+
+    // FIX #1: Check if a pronoun in a question is ambiguous before answering
+    function checkPronounAmbiguityForQuery(pronoun) {
+      const p = pronoun.toLowerCase();
+      if (MALE_PRONOUNS.has(p)) {
+        const males = getEntitiesOfGender('male');
+        if (males.length > 1) {
+          return `"${pronoun}" is ambiguous — I have multiple male entities: ${males.map(e => e.name).join(', ')}. Who are you asking about — ${males.map(e => e.name).join(' or ')}?`;
+        }
+        if (males.length === 0 && Object.keys(KG.entities).length > 0) {
+          return `"${pronoun}" was used but I have no male entities in the graph. Who are you asking about?`;
+        }
+      }
+      if (FEMALE_PRONOUNS.has(p)) {
+        const females = getEntitiesOfGender('female');
+        if (females.length > 1) {
+          return `"${pronoun}" is ambiguous — I have multiple female entities: ${females.map(e => e.name).join(', ')}. Who are you asking about — ${females.map(e => e.name).join(' or ')}?`;
+        }
+        if (females.length === 0 && Object.keys(KG.entities).length > 0) {
+          return `"${pronoun}" was used but I have no female entities in the graph. Who are you asking about?`;
+        }
+      }
+      return null; // not ambiguous
+    }
+
+    function formatRelationAsText(rel, perspectiveKey) {
+      const src = KG.entities[rel.source];
+      const tgt = KG.entities[rel.target];
+      if (!src || !tgt) return null;
+
+      if (rel.source === perspectiveKey) {
+        switch (rel.relation) {
+          case 'works_at': return `${src.name} works at ${tgt.name}`;
+          case 'has_role': return `${src.name} is a ${tgt.name}`;
+          case 'lives_in': return `${src.name} lives in ${tgt.name}`;
+          case 'founded': return `${src.name} founded ${tgt.name}`;
+          case 'likes': return `${src.name} likes ${tgt.name}`;
+          case 'loves': return `${src.name} loves ${tgt.name}`;
+          case 'interested_in': return `${src.name} is interested in ${tgt.name}`;
+          case 'leads': return `${src.name} leads ${tgt.name}`;
+          case 'owns': return `${src.name} owns ${tgt.name}`;
+          case 'part_of': return `${src.name} is part of ${tgt.name}`;
+          default: return `${src.name} ${rel.relation.replace(/_/g, ' ')} ${tgt.name}`;
+        }
+      } else {
+        switch (rel.relation) {
+          case 'works_at': return `${tgt.name} works at ${src.name}`;
+          case 'founded': return `${tgt.name} was founded by ${src.name}`;
+          default: return `${tgt.name} ${rel.relation.replace(/_/g, ' ')} ${src.name}`;
+        }
+      }
+    }
+
+    function escapeRegex(str) {
+      return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // PRONOUN RESOLUTION
+    // ════════════════════════════════════════════════════════════
+
+    const MALE_PRONOUNS = new Set(['he', 'him', 'his']);
+    const FEMALE_PRONOUNS = new Set(['she', 'her', 'hers']);
+    const THING_PRONOUNS = new Set(['it', 'its']);
+    const PLACE_PRONOUNS = new Set(['there', 'here']);
+    const PLURAL_PRONOUNS = new Set(['they', 'them', 'their']);
+
+    function resolvePronoun(pronoun, history) {
+      const p = pronoun.toLowerCase();
+
+      // Pass 1: recent history
+      for (let i = history.length - 1; i >= Math.max(0, history.length - 4); i--) {
+        const turn = history[i];
+        for (const ent of (turn.entities || [])) {
+          const kg_ent = KG.entities[KG.canonical(ent.name)];
+          const gender = kg_ent ? kg_ent.gender : inferGender(ent.name);
+
+          if (MALE_PRONOUNS.has(p) && gender === 'male') return ent.name;
+          if (FEMALE_PRONOUNS.has(p) && gender === 'female') return ent.name;
+          if (THING_PRONOUNS.has(p) && ['Concept', 'Organization'].includes(ent.type)) return ent.name;
+          if (PLACE_PRONOUNS.has(p) && ['Location', 'Organization'].includes(ent.type)) return ent.name;
+          if (PLURAL_PRONOUNS.has(p)) return ent.name;
+        }
+      }
+
+      // Pass 2: full KG scan for gendered pronouns
+      if (MALE_PRONOUNS.has(p)) {
+        const males = getEntitiesOfGender('male');
+        if (males.length === 1) return males[0].name;
+      }
+      if (FEMALE_PRONOUNS.has(p)) {
+        const females = getEntitiesOfGender('female');
+        if (females.length === 1) return females[0].name;
+      }
+
+      return null;
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // AMBIGUITY DETECTOR (for statements)
+    // ════════════════════════════════════════════════════════════
+
+    const THRESHOLD = 0.4;
+
+    function detectAmbiguity(text, entities, conversationHistory) {
+      let score = 0;
+      const types = [], reasons = [], questions = [];
+
+      const pronounMatches = [...text.matchAll(PRONOUNS)].map(m => m[0].toLowerCase());
+
+      const heUsed = pronounMatches.some(p => MALE_PRONOUNS.has(p));
+      const sheUsed = pronounMatches.some(p => FEMALE_PRONOUNS.has(p));
+      const allMales = getEntitiesOfGender('male');
+      const allFemales = getEntitiesOfGender('female');
+
+      if (heUsed) {
+        if (allMales.length === 0 && Object.keys(KG.entities).length > 0) {
+          score += 0.5;
+          types.push('missing_entity');
+          reasons.push('"He" used but no male entities exist in graph');
+          questions.push('Who does "he" refer to? I have no male person in the graph.');
+        } else if (allMales.length > 1) {
+          score += 0.5;
+          types.push('multiple_candidates');
+          reasons.push(`"He" is ambiguous — multiple male entities: ${allMales.map(e => e.name).join(', ')}`);
+          questions.push(`Who does "he" refer to — ${allMales.map(e => e.name).join(' or ')}?`);
+        }
+      }
+
+      if (sheUsed) {
+        if (allFemales.length === 0 && Object.keys(KG.entities).length > 0) {
+          score += 0.5;
+          types.push('missing_entity');
+          reasons.push('"She" used but no female entities exist in graph');
+          const maleNames = allMales.map(e => e.name).join(', ');
+          questions.push(
+            allMales.length > 0
+              ? `"She" was used but I only see male entities (${maleNames}). Who does "she" refer to?`
+              : 'Who does "she" refer to? I have no female person in the graph.'
+          );
+        } else if (allFemales.length > 1) {
+          score += 0.5;
+          types.push('multiple_candidates');
+          reasons.push(`"She" is ambiguous — multiple female entities: ${allFemales.map(e => e.name).join(', ')}`);
+          questions.push(`Who does "she" refer to — ${allFemales.map(e => e.name).join(' or ')}?`);
+        }
+      }
+
+      const vagueLocMatches = [...text.matchAll(VAGUE_LOCS)].map(m => m[0]);
+      if (vagueLocMatches.length > 0 && resolvePronoun('there', conversationHistory) === null) {
+        score += 0.30;
+        types.push('underspecified_context');
+        reasons.push(`Vague location reference: "${vagueLocMatches[0]}"`);
+        questions.push('Which specific location or organization are you referring to?');
+      }
+
+      if (/\blikes?\s+(music|things?|stuff|sports?)\b/i.test(text)) {
+        score += 0.20;
+        types.push('unclear_relation');
+        reasons.push('Vague "likes" relation — type unspecified');
+        questions.push('Can you be more specific? (e.g., what kind of music?)');
+      }
+
+      for (const ent of entities) {
+        const key = ent.name.toLowerCase();
+        const candidates = Object.keys(KG.entities).filter(k =>
+          k.includes(key) || key.includes(k)
+        );
+        if (candidates.length > 1) {
+          score += 0.25;
+          types.push('multiple_candidates');
+          reasons.push(`"${ent.name}" matches multiple nodes: ${candidates.join(', ')}`);
+          questions.push(`Do you mean "${candidates[0]}" or "${candidates[1]}"?`);
+        }
+      }
+
+      if (/\b(works?|lives?|likes?|owns?|founded|leads?)\b/i.test(text) && entities.length === 0) {
+        score += 0.40;
+        types.push('missing_entity');
+        reasons.push('Relation words found but no entities could be extracted');
+        questions.push('Who is performing this action?');
+      }
+
+      score = Math.min(score, 1.0);
+      return {
+        score: Math.round(score * 1000) / 1000,
+        types: [...new Set(types)],
+        reasons: [...new Set(reasons)],
+        pronounsFound: pronounMatches,
+        vagueRefs: vagueLocMatches,
+        shouldClarify: score >= THRESHOLD,
+        clarificationQuestions: [...new Set(questions)].slice(0, 3)
+      };
+    }
+
+    function getEntitiesOfGender(gender) {
+      return Object.values(KG.entities).filter(
+        e => e.type === 'Person' && e.gender === gender
+      );
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // CONVERSATION STATE
+    // ════════════════════════════════════════════════════════════
+
+    let conversationHistory = [];
+    let turnCount = 0;
+    let isProcessing = false;
+
+    // ════════════════════════════════════════════════════════════
+    // MAIN PROCESSING PIPELINE
+    // ════════════════════════════════════════════════════════════
+
+    function processInput(userText) {
+      const snapBefore = KG.snapshot();
+      KG.clearNewFlags();
+
+      // ── BRANCH 1: Question ──────────────────────────────────
+      if (isQuestion(userText)) {
+        const kgResult = answerFromKG(userText, conversationHistory);
+
+        conversationHistory.push({
+          role: 'user', text: userText,
+          entities: extractEntities(userText),
+          ambiguity: { score: 0, types: [], reasons: [], shouldClarify: false, clarificationQuestions: [] }
+        });
+        turnCount++;
+
+        return {
+          mode: 'query',
+          userText,
+          kgResult,
+          snapBefore,
+          snapAfter: KG.snapshot(),
+          diff: { addedNodes: [], removedNodes: [], addedEdges: [], removedEdges: [] }
+        };
+      }
+
+      // ── BRANCH 2: Statement ─────────────────────────────────
+      let workingText = userText;
+      const rawPronouns = [...userText.matchAll(PRONOUNS)].map(m => m[0].toLowerCase());
+      for (const pronoun of rawPronouns) {
+        const resolved = resolvePronoun(pronoun, conversationHistory);
+        if (resolved) {
+          workingText = workingText.replace(new RegExp(`\\b${pronoun}\\b`, 'i'), resolved);
+        }
+      }
+
+      const entities = extractEntities(workingText);
+      if (workingText !== userText) {
+        extractEntities(userText).forEach(e => {
+          if (!entities.find(x => x.name === e.name)) entities.push(e);
+        });
+      }
+
+      const triples = extractRelations(workingText, entities);
+      const ambiguity = detectAmbiguity(userText, entities, conversationHistory);
+
+      let kgUpdated = false;
+      if (!ambiguity.shouldClarify) {
+        entities.forEach(e => KG.addEntity(e.name, e.type));
+        triples.forEach(([s, r, o]) => {
+          if (!KG.entities[KG.canonical(s)]) KG.addEntity(s, 'Unknown');
+          if (!KG.entities[KG.canonical(o)]) KG.addEntity(o, 'Unknown');
+          KG.addRelation(s, r, o);
+        });
+        kgUpdated = true;
+      }
+
+      const snapAfter = KG.snapshot();
+      const diff = computeDiff(snapBefore, snapAfter);
+      const response = generateResponse(userText, entities, triples, ambiguity, diff, kgUpdated);
+
+      conversationHistory.push({
+        role: 'user', text: userText,
+        entities: entities.map(e => ({ name: e.name, type: e.type })),
+        ambiguity
+      });
+      turnCount++;
+
+      return {
+        mode: 'statement',
+        userText, response, entities, triples,
+        ambiguity, snapBefore, snapAfter, diff, kgUpdated
+      };
+    }
+
+    function computeDiff(before, after) {
+      const addedNodes = Object.keys(after.nodes).filter(k => !before.nodes[k]);
+      const removedNodes = Object.keys(before.nodes).filter(k => !after.nodes[k]);
+      const beforeEdges = new Set(before.edges.map(e => `${e.source}|${e.relation}|${e.target}`));
+      const afterEdges = new Set(after.edges.map(e => `${e.source}|${e.relation}|${e.target}`));
+      const addedEdges = after.edges.filter(e => !beforeEdges.has(`${e.source}|${e.relation}|${e.target}`));
+      const removedEdges = before.edges.filter(e => !afterEdges.has(`${e.source}|${e.relation}|${e.target}`));
+      return { addedNodes, removedNodes, addedEdges, removedEdges };
+    }
+
+    function generateResponse(text, entities, triples, ambiguity, diff, kgUpdated) {
+      if (ambiguity.shouldClarify) {
+        return `I'd like to clarify before updating my memory. ${ambiguity.clarificationQuestions.join(' ')}`;
+      }
+      const parts = [];
+      if (diff.addedNodes.length) {
+        const names = diff.addedNodes.map(k => KG.entities[k]?.name || k);
+        parts.push(`I've noted ${names.join(', ')} as new entities.`);
+      }
+      if (diff.addedEdges.length) {
+        const edgeStrs = diff.addedEdges.map(e =>
+          `${KG.entities[e.source]?.name || e.source} ${e.relation.replace(/_/g, ' ')} ${KG.entities[e.target]?.name || e.target}`
+        );
+        parts.push(`Recorded: ${edgeStrs.join('; ')}.`);
+      }
+      if (!parts.length) {
+        if (entities.length)
+          parts.push(`Got it — I recognized ${entities.map(e => e.name).join(', ')} but found no new relations to record.`);
+        else
+          parts.push("Understood, but I couldn't extract any new knowledge to add to the graph.");
+      }
+      return parts.join(' ');
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // UI RENDERING
+    // ════════════════════════════════════════════════════════════
+
+    function sendMessage() {
+      const input = document.getElementById('user-input');
+      const text = input.value.trim();
+      if (!text || isProcessing) return;
+
+      input.value = '';
+      autoResize(input);
+      document.getElementById('input-count').textContent = '0 chars';
+      processAndRender(text);
+    }
+
+    async function processAndRender(text) {
+      isProcessing = true;
+      document.getElementById('send-btn').disabled = true;
+
+      const welcome = document.getElementById('welcome');
+      if (welcome) welcome.remove();
+
+      appendUserMessage(text);
+
+      const loadingId = 'loading-' + Date.now();
+      appendLoading(loadingId);
+
+      await new Promise(r => setTimeout(r, 300 + Math.random() * 200));
+
+      const result = processInput(text);
+
+      document.getElementById(loadingId)?.remove();
+
+      if (result.mode === 'query') {
+        appendQueryResponse(result);
+      } else {
+        appendBotResponse(result);
+      }
+
+      // FIX (visual): Initialise positions for all new nodes BEFORE running
+      // the simulation, so they start near the centre, not at (0,0).
+      initNewNodePositions();
+      runForceSimulation(() => {
+        renderGraph();
+        updateKGList();
+        updateStats();
+      });
+
+      isProcessing = false;
+      document.getElementById('send-btn').disabled = false;
+      document.getElementById('user-input').focus();
+    }
+
+    function appendUserMessage(text) {
+      const chat = document.getElementById('chat-messages');
+      const div = document.createElement('div');
+      div.className = 'msg user';
+      div.innerHTML = `
+        <div class="msg-avatar">U</div>
+        <div class="msg-body">
+          <div class="msg-role">You</div>
+          <div class="msg-content">${escHtml(text)}</div>
+        </div>`;
+      chat.appendChild(div);
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    function appendLoading(id) {
+      const chat = document.getElementById('chat-messages');
+      const div = document.createElement('div');
+      div.className = 'msg bot';
+      div.id = id;
+      div.innerHTML = `
+        <div class="msg-avatar">KG</div>
+        <div class="msg-body">
+          <div class="msg-role">KG Mind</div>
+          <div class="loading-dots">
+            <div class="loading-dot"></div>
+            <div class="loading-dot"></div>
+            <div class="loading-dot"></div>
+          </div>
+        </div>`;
+      chat.appendChild(div);
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    // FIX #1, #2, #3: Richer query response card handles all three query result types
+    function appendQueryResponse(result) {
+      const chat = document.getElementById('chat-messages');
+      const div = document.createElement('div');
+      div.className = 'msg bot';
+      const { kgResult } = result;
+
+      let cardClass = 'response-card query-card';
+      let sectionHTML = '';
+
+      if (kgResult.type === 'answer') {
+        sectionHTML = `
+          <div class="response-section">
+            <div class="section-label answer">🔍 Answer</div>
+            <div class="answer-text">${escHtml(kgResult.message)}</div>
+          </div>
+          <div class="response-section">
+            <div class="section-label kg">🧠 Source: Knowledge Graph</div>
+            <div style="font-size:12px;color:var(--text3);margin-top:2px;">
+              ${Object.keys(KG.entities).length} nodes · ${KG.relations.length} edges in memory
+            </div>
+          </div>`;
+
+      } else if (kgResult.type === 'ambiguous') {
+        // FIX #1: Show ambiguity clarification for queries, not just statements
+        cardClass = 'response-card query-card clarify-card';
+        sectionHTML = `
+          <div class="response-section">
+            <div class="section-label ambig">⚠️ Ambiguous Query</div>
+            <div class="section-text" style="margin-top:4px;">I can answer that, but I need to clarify first:</div>
+          </div>
+          <div class="response-section">
+            <div class="section-label clarify">❓ Clarification Needed</div>
+            <div class="clarify-list">
+              <div class="clarify-item amber">→ ${escHtml(kgResult.message)}</div>
+            </div>
+          </div>
+          <div class="response-section">
+            <div class="section-label kg">🧠 Knowledge Graph</div>
+            <div style="font-size:12px;color:var(--text3);margin-top:2px;">
+              ${Object.keys(KG.entities).length} nodes · ${KG.relations.length} edges in memory
+            </div>
+          </div>`;
+
+      } else {
+        // FIX #2: not_found and unknown — clearly say "I don't know"
+        sectionHTML = `
+          <div class="response-section">
+            <div class="section-label unknown">🔎 Not Found</div>
+            <div class="unknown-text">${escHtml(kgResult.message)}</div>
+          </div>
+          <div class="response-section">
+            <div class="section-label kg">🧠 Knowledge Graph</div>
+            <div style="font-size:12px;color:var(--text3);margin-top:2px;">
+              ${Object.keys(KG.entities).length} nodes · ${KG.relations.length} edges in memory
+            </div>
+          </div>`;
+      }
+
+      div.innerHTML = `
+        <div class="msg-avatar">KG</div>
+        <div class="msg-body">
+          <div class="msg-role">KG Mind</div>
+          <div class="bot-response">
+            <div class="${cardClass}">
+              ${sectionHTML}
+            </div>
+          </div>
+        </div>`;
+      chat.appendChild(div);
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    function appendBotResponse(result) {
+      const { response, ambiguity, snapBefore, snapAfter, diff } = result;
+      const chat = document.getElementById('chat-messages');
+      const div = document.createElement('div');
+      div.className = 'msg bot';
+
+      const scoreClass = ambiguity.score < 0.3 ? 'low' : ambiguity.score < 0.6 ? 'mid' : 'high';
+      const scoreBarWidth = Math.round(ambiguity.score * 100);
+
+      const tagMap = {
+        missing_entity: ['missing', 'Missing Entity'],
+        unclear_relation: ['unclear', 'Unclear Relation'],
+        multiple_candidates: ['multiple', 'Multiple Candidates'],
+        underspecified_context: ['unspecified', 'Underspecified']
+      };
+
+      const typeTags = ambiguity.types.map(t => {
+        const [cls, label] = tagMap[t] || ['unclear', t];
+        return `<span class="type-tag ${cls}">${label}</span>`;
+      }).join('');
+
+      const reasonsHTML = ambiguity.reasons.map(r =>
+        `<div style="font-size:12px;color:var(--text2);margin-top:4px;">• ${escHtml(r)}</div>`
+      ).join('');
+
+      const clarifSection = ambiguity.shouldClarify && ambiguity.clarificationQuestions.length > 0
+        ? `<div class="response-section">
+            <div class="section-label clarify">❓ Clarification Needed</div>
+            <div class="clarify-list">
+              ${ambiguity.clarificationQuestions.map(q =>
+          `<div class="clarify-item">→ ${escHtml(q)}</div>`
+        ).join('')}
+            </div>
+          </div>` : '';
+
+      const changesHTML = buildChangesHTML(diff);
+
+      div.innerHTML = `
+        <div class="msg-avatar">KG</div>
+        <div class="msg-body">
+          <div class="msg-role">KG Mind</div>
+          <div class="bot-response">
+            <div class="response-card">
+              <div class="response-section">
+                <div class="section-label reply">🧾 Response</div>
+                <div class="section-text">${escHtml(response)}</div>
+              </div>
+              <div class="response-section">
+                <div class="section-label ambig">⚠️ Ambiguity Analysis</div>
+                <div class="ambig-row">
+                  <div class="score-bar-wrap">
+                    <div class="score-bar ${scoreClass}" style="width:${scoreBarWidth}%"></div>
+                  </div>
+                  <span class="score-value ${scoreClass}">${ambiguity.score.toFixed(2)}</span>
+                </div>
+                ${typeTags
+          ? `<div class="type-tags">${typeTags}</div>`
+          : '<div style="font-size:12px;color:var(--green);margin-top:4px;">✓ No ambiguity detected</div>'}
+                ${reasonsHTML}
+              </div>
+              ${clarifSection}
+              <div class="response-section">
+                <div class="section-label kg">🧠 Knowledge Graph Snapshot</div>
+                <div class="kg-diff">
+                  <div class="kg-panel before">
+                    <div class="kg-panel-label">Before</div>
+                    <pre class="kg-code">${formatKGText(snapBefore, [], [])}</pre>
+                  </div>
+                  <div class="kg-panel after">
+                    <div class="kg-panel-label">After</div>
+                    <pre class="kg-code">${formatKGText(snapAfter, diff.addedNodes, diff.addedEdges)}</pre>
+                  </div>
+                </div>
+                ${changesHTML}
+              </div>
+            </div>
+          </div>
+        </div>`;
+
+      chat.appendChild(div);
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    function formatKGText(snap, addedNodeKeys, addedEdges) {
+      const addedEdgeSet = new Set(addedEdges.map(e => `${e.source}|${e.relation}|${e.target}`));
+      const lines = [];
+      const nodes = Object.entries(snap.nodes);
+      if (nodes.length === 0 && snap.edges.length === 0) return '(empty)';
+      if (nodes.length) {
+        lines.push('Nodes:');
+        nodes.forEach(([k, n]) => {
+          const isNew = addedNodeKeys.includes(k);
+          const cls = isNew ? 'new-node' : 'node-line';
+          const prefix = isNew ? '+ ' : '  ';
+          lines.push(`<span class="${cls}">${escHtml(prefix + n.name + ' (' + n.type + ')')}</span>`);
+        });
+      }
+      if (snap.edges.length) {
+        lines.push('Edges:');
+        snap.edges.forEach(e => {
+          const key = `${e.source}|${e.relation}|${e.target}`;
+          const isNew = addedEdgeSet.has(key);
+          const sn = snap.nodes[e.source]?.name || e.source;
+          const tn = snap.nodes[e.target]?.name || e.target;
+          const cls = isNew ? 'new-edge' : 'edge-line';
+          const prefix = isNew ? '+ ' : '  ';
+          lines.push(`<span class="${cls}">${escHtml(prefix + sn + ' → ' + e.relation + ' → ' + tn)}</span>`);
+        });
+      }
+      return lines.join('\n') || '(empty)';
+    }
+
+    function buildChangesHTML(diff) {
+      const items = [];
+      diff.addedNodes.forEach(k => {
+        const n = KG.entities[k];
+        items.push(`<div class="change-item"><span class="change-badge">+NODE</span>${escHtml(n?.name || k)} (${n?.type || '?'})</div>`);
+      });
+      diff.addedEdges.forEach(e => {
+        const sn = KG.entities[e.source]?.name || e.source;
+        const tn = KG.entities[e.target]?.name || e.target;
+        items.push(`<div class="change-item"><span class="change-badge">+EDGE</span>${escHtml(sn)} → ${escHtml(e.relation)} → ${escHtml(tn)}</div>`);
+      });
+      diff.removedNodes.forEach(k => {
+        items.push(`<div class="change-item removed"><span class="change-badge removed">-NODE</span>${escHtml(k)}</div>`);
+      });
+      if (!items.length) {
+        return `<div class="changes-strip" style="border-color:rgba(90,86,128,0.2);background:transparent;">
+          <div class="change-item" style="color:var(--text3);">No changes — KG unchanged (ambiguous input)</div>
+        </div>`;
+      }
+      return `<div class="changes-strip">${items.join('')}</div>`;
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // GRAPH VISUALIZATION  (FIX: visual node position bug)
+    // ════════════════════════════════════════════════════════════
+
+    const NODE_COLORS = {
+      Person: { fill: '#7c6fff', stroke: '#a896ff', text: '#e8e6ff' },
+      Organization: { fill: '#22d3ee', stroke: '#67e8f9', text: '#0a1a20' },
+      Location: { fill: '#4ade80', stroke: '#86efac', text: '#052e16' },
+      Concept: { fill: '#fbbf24', stroke: '#fde68a', text: '#1c0a00' },
+      Unknown: { fill: '#5a5680', stroke: '#7c78a8', text: '#e8e6ff' },
+    };
+
+    let nodePositions = {};
+    let dragNode = null, dragOffset = { x: 0, y: 0 };
+
+    // FIX (visual): Separate init step so ALL new nodes get center-biased positions
+    // BEFORE the force simulation runs. This prevents the (0,0) → top-left bug.
+    function initNewNodePositions() {
+      const wrapper = document.querySelector('.graph-canvas-wrap');
+      const W = wrapper ? wrapper.clientWidth : 380;
+      const H = wrapper ? wrapper.clientHeight : 320;
+
+      Object.keys(KG.entities).forEach(key => {
+        if (!nodePositions[key]) {
+          // Spread new nodes in a small cluster around the canvas centre
+          nodePositions[key] = {
+            x: W / 2 + (Math.random() - 0.5) * 80,
+            y: H / 2 + (Math.random() - 0.5) * 80,
+            vx: 0,
+            vy: 0
+          };
+        } else {
+          // Carry over existing positions; ensure velocity fields exist
+          if (nodePositions[key].vx === undefined) {
+            nodePositions[key].vx = 0;
+            nodePositions[key].vy = 0;
+          }
+        }
+      });
+
+      // Remove stale positions for deleted entities
+      Object.keys(nodePositions).forEach(k => {
+        if (!KG.entities[k]) delete nodePositions[k];
+      });
+    }
+
+    function runForceSimulation(callback, iterations = 150) {
+      const wrapper = document.querySelector('.graph-canvas-wrap');
+      const W = wrapper ? wrapper.clientWidth : 380;
+      const H = wrapper ? wrapper.clientHeight : 320;
+
+      const keys = Object.keys(KG.entities);
+      const relations = KG.relations;
+
+      for (let tick = 0; tick < iterations; tick++) {
+        // Repulsion between all node pairs
+        for (let i = 0; i < keys.length; i++) {
+          for (let j = i + 1; j < keys.length; j++) {
+            const a = nodePositions[keys[i]];
+            const b = nodePositions[keys[j]];
+            if (!a || !b) continue;
+            const dx = b.x - a.x, dy = b.y - a.y;
+            const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+            const force = 5000 / (dist * dist);
+            const fx = (dx / dist) * force, fy = (dy / dist) * force;
+            a.vx -= fx; a.vy -= fy;
+            b.vx += fx; b.vy += fy;
+          }
+        }
+
+        // Spring attraction along edges
+        relations.forEach(rel => {
+          const a = nodePositions[rel.source];
+          const b = nodePositions[rel.target];
+          if (!a || !b) return;
+          const dx = b.x - a.x, dy = b.y - a.y;
+          const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+          const idealDist = 130;
+          const force = (dist - idealDist) * 0.04;
+          const fx = (dx / dist) * force, fy = (dy / dist) * force;
+          a.vx += fx; a.vy += fy;
+          b.vx -= fx; b.vy -= fy;
+        });
+
+        // Gravity toward centre
+        keys.forEach(k => {
+          const p = nodePositions[k];
+          if (!p) return;
+          p.vx += (W / 2 - p.x) * 0.018;
+          p.vy += (H / 2 - p.y) * 0.018;
+        });
+
+        // Integrate + damp + clamp to canvas bounds
+        const pad = 44;
+        keys.forEach(k => {
+          const p = nodePositions[k];
+          if (!p) return;
+          p.vx *= 0.6; p.vy *= 0.6;
+          p.x = Math.max(pad, Math.min(W - pad, p.x + p.vx));
+          p.y = Math.max(pad, Math.min(H - pad, p.y + p.vy));
+        });
+      }
+
+      callback();
+    }
+
+    function renderGraph() {
+      const svg = document.getElementById('graph-svg');
+      const edgesG = document.getElementById('graph-edges');
+      const nodesG = document.getElementById('graph-nodes');
+      const empty = document.getElementById('graph-empty');
+
+      const entities = Object.entries(KG.entities);
+      const relations = KG.relations;
+
+      if (entities.length === 0) {
+        empty.style.display = 'flex';
+        edgesG.innerHTML = '';
+        nodesG.innerHTML = '';
+        return;
+      }
+      empty.style.display = 'none';
+
+      const wrapper = document.querySelector('.graph-canvas-wrap');
+      const W = wrapper ? wrapper.clientWidth : 380;
+      const H = wrapper ? wrapper.clientHeight : 320;
+
+      // ── Edges ──────────────────────────────────────────────
+      edgesG.innerHTML = '';
+      relations.forEach(rel => {
+        const sp = nodePositions[rel.source];
+        const tp = nodePositions[rel.target];
+        if (!sp || !tp) return;
+
+        const dx = tp.x - sp.x, dy = tp.y - sp.y;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        const r = 22;
+        const ex = tp.x - (dx / dist) * r, ey = tp.y - (dy / dist) * r;
+        const sx = sp.x + (dx / dist) * r, sy = sp.y + (dy / dist) * r;
+        const mx = (sx + ex) / 2 - dy * 0.12;
+        const my = (sy + ey) / 2 + dx * 0.12;
+
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', `M${sx},${sy} Q${mx},${my} ${ex},${ey}`);
+        path.setAttribute('fill', 'none');
+        path.setAttribute('stroke', rel.isNew ? '#7c6fff' : 'rgba(120,110,255,0.35)');
+        path.setAttribute('stroke-width', rel.isNew ? '1.5' : '1');
+        path.setAttribute('marker-end', 'url(#garrow)');
+        edgesG.appendChild(path);
+
+        const lx = (sx + mx + ex) / 3;
+        const ly = (sy + my + ey) / 3 - 6;
+        const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        label.setAttribute('x', lx);
+        label.setAttribute('y', ly);
+        label.setAttribute('text-anchor', 'middle');
+        label.setAttribute('font-size', '9');
+        label.setAttribute('font-family', 'JetBrains Mono, monospace');
+        label.setAttribute('fill', 'rgba(148,144,192,0.8)');
+        label.textContent = rel.relation.replace(/_/g, ' ');
+        edgesG.appendChild(label);
+      });
+
+      // ── Nodes ──────────────────────────────────────────────
+      nodesG.innerHTML = '';
+      entities.forEach(([key, ent]) => {
+        const pos = nodePositions[key];
+        if (!pos) return; // safety guard — should never happen after initNewNodePositions()
+
+        const colors = NODE_COLORS[ent.type] || NODE_COLORS.Unknown;
+        const isNew = ent.isNew;
+
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        g.setAttribute('transform', `translate(${pos.x},${pos.y})`);
+        g.style.cursor = 'grab';
+        if (isNew) g.classList.add('new-node');
+
+        if (isNew) {
+          const ring = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+          ring.setAttribute('r', '28');
+          ring.setAttribute('fill', 'none');
+          ring.setAttribute('stroke', colors.stroke);
+          ring.setAttribute('stroke-width', '0.5');
+          ring.setAttribute('opacity', '0.4');
+          g.appendChild(ring);
+        }
+
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('r', '20');
+        circle.setAttribute('fill', colors.fill);
+        circle.setAttribute('stroke', colors.stroke);
+        circle.setAttribute('stroke-width', isNew ? '1.5' : '0.5');
+        circle.setAttribute('fill-opacity', '0.85');
+        g.appendChild(circle);
+
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('dominant-baseline', 'central');
+        text.setAttribute('font-size', '10');
+        text.setAttribute('font-family', 'Space Grotesk, sans-serif');
+        text.setAttribute('font-weight', '600');
+        text.setAttribute('fill', colors.text);
+        text.textContent = ent.name.length > 8 ? ent.name.slice(0, 7) + '…' : ent.name;
+        g.appendChild(text);
+
+        const typeLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        typeLabel.setAttribute('y', '30');
+        typeLabel.setAttribute('text-anchor', 'middle');
+        typeLabel.setAttribute('font-size', '8');
+        typeLabel.setAttribute('font-family', 'Space Grotesk, sans-serif');
+        typeLabel.setAttribute('fill', 'rgba(148,144,192,0.7)');
+        typeLabel.textContent = ent.type;
+        g.appendChild(typeLabel);
+
+        // Drag support
+        g.addEventListener('mousedown', e => {
+          dragNode = key;
+          const rect = svg.getBoundingClientRect();
+          dragOffset = {
+            x: e.clientX - rect.left - pos.x,
+            y: e.clientY - rect.top - pos.y
+          };
+          g.style.cursor = 'grabbing';
+          e.preventDefault();
+        });
+
+        nodesG.appendChild(g);
+      });
+    }
+
+    document.addEventListener('mousemove', e => {
+      if (!dragNode) return;
+      const svg = document.getElementById('graph-svg');
+      const rect = svg.getBoundingClientRect();
+      if (nodePositions[dragNode]) {
+        nodePositions[dragNode].x = e.clientX - rect.left - dragOffset.x;
+        nodePositions[dragNode].y = e.clientY - rect.top - dragOffset.y;
+        nodePositions[dragNode].vx = 0;
+        nodePositions[dragNode].vy = 0;
+      }
+      renderGraph();
     });
 
-    if (!res.ok) throw new Error("Backend error");
-
-    const data = await res.json();
-
-    if (!data.entities || data.entities.length === 0) {
-      return heuristicNER(text);
-    }
-
-    // Normalize backend response
-    const mapped = data.entities.map(e => ({
-      name: e.text || e.name,
-      type: mapLabel(e.label || e.type)
-    }));
-
-    return mapped;
-
-  } catch (err) {
-    console.error("NER failed, using fallback:", err);
-    return heuristicNER(text);
-  }
-}
-
-// ===================== FALLBACK NER =====================
-
-function heuristicNER(text) {
-  const words = text.split(/\s+/);
-  const entities = [];
-
-  words.forEach(w => {
-    const clean = w.replace(/[^a-zA-Z]/g, "");
-    if (!clean) return;
-
-    if (PERSON_NAMES.has(clean.toLowerCase())) {
-      entities.push({ name: clean, type: "Person" });
-    } else if (ORG_NAMES.has(clean.toLowerCase())) {
-      entities.push({ name: clean, type: "Organization" });
-    } else if (LOC_NAMES.has(clean.toLowerCase())) {
-      entities.push({ name: clean, type: "Location" });
-    } else if (CONCEPT_NAMES.has(clean.toLowerCase())) {
-      entities.push({ name: clean, type: "Concept" });
-    }
-  });
-
-  return entities;
-}
-
-// ===================== LABEL MAPPING =====================
-
-function mapLabel(label) {
-  if (!label) return "Unknown";
-
-  const l = label.toLowerCase();
-
-  if (l.includes("person")) return "Person";
-  if (l.includes("org")) return "Organization";
-  if (l.includes("gpe") || l.includes("loc")) return "Location";
-  if (l.includes("event") || l.includes("product")) return "Concept";
-
-  return "Unknown";
-}
-
-// ===================== FIXED PROCESS PIPELINE =====================
-
-async function processInput(userText) {
-  const snapBefore = KG.snapshot();
-  KG.clearNewFlags();
-
-  let workingText = userText;
-
-  // Resolve pronouns
-  const rawPronouns = [...userText.matchAll(PRONOUNS)].map(m => m[0].toLowerCase());
-  for (const pronoun of rawPronouns) {
-    const resolved = resolvePronoun(pronoun, conversationHistory);
-    if (resolved) {
-      workingText = workingText.replace(new RegExp(`\\b${pronoun}\\b`, 'i'), resolved);
-    }
-  }
-
-  // Extract entities
-  let entities = await extractEntities(workingText);
-
-  // Merge original entities if pronoun replacement happened
-  if (workingText !== userText) {
-    const originalEntities = await extractEntities(userText);
-    originalEntities.forEach(e => {
-      if (!entities.find(x => x.name === e.name)) {
-        entities.push(e);
+    document.addEventListener('mouseup', () => {
+      if (dragNode) {
+        dragNode = null;
+        document.querySelectorAll('#graph-nodes g').forEach(g => g.style.cursor = 'grab');
       }
     });
-  }
 
-  const triples = extractRelations(workingText, entities);
+    // ════════════════════════════════════════════════════════════
+    // KG LIST + STATS
+    // ════════════════════════════════════════════════════════════
 
-  console.log("Entities:", entities);
-  console.log("Triples:", triples);
+    function updateKGList() {
+      const body = document.getElementById('kg-list-body');
+      const entities = Object.values(KG.entities);
+      const relations = KG.relations;
 
-  const ambiguity = detectAmbiguity(userText, entities, conversationHistory);
+      if (entities.length === 0) {
+        body.innerHTML = '<div style="color:var(--text3); font-size:12px; padding:8px 0;">No data yet</div>';
+        return;
+      }
 
-  let kgUpdated = false;
+      let html = '';
+      entities.forEach(e => {
+        html += `<div class="entity-row">
+          <span class="entity-name">${escHtml(e.name)}</span>
+          <span class="entity-type ${e.type}">${e.type}</span>
+        </div>`;
+      });
 
-  if (!ambiguity.shouldClarify) {
-    entities.forEach(e => KG.addEntity(e.name, e.type));
+      if (relations.length) {
+        html += `<div style="margin-top:8px;margin-bottom:4px;font-size:10px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--text3);">Relations</div>`;
+        relations.forEach(r => {
+          const sn = KG.entities[r.source]?.name || r.source;
+          const tn = KG.entities[r.target]?.name || r.target;
+          html += `<div class="edge-row">
+            <span class="edge-subject">${escHtml(sn)}</span>
+            <span class="edge-rel">→ ${escHtml(r.relation)} →</span>
+            <span class="edge-object">${escHtml(tn)}</span>
+          </div>`;
+        });
+      }
+      body.innerHTML = html;
+    }
 
-    triples.forEach(([s, r, o]) => {
-      if (!KG.entities[KG.canonical(s)]) KG.addEntity(s, 'Unknown');
-      if (!KG.entities[KG.canonical(o)]) KG.addEntity(o, 'Unknown');
-      KG.addRelation(s, r, o);
-    });
+    function updateStats() {
+      document.getElementById('stat-nodes').textContent = Object.keys(KG.entities).length;
+      document.getElementById('stat-edges').textContent = KG.relations.length;
+      document.getElementById('stat-turns').textContent = turnCount;
+    }
 
-    kgUpdated = true;
-  }
+    // ════════════════════════════════════════════════════════════
+    // UI HELPERS
+    // ════════════════════════════════════════════════════════════
 
-  const snapAfter = KG.snapshot();
-  const diff = computeDiff(snapBefore, snapAfter);
+    function handleKey(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    }
 
-  const response = generateResponse(userText, entities, triples, ambiguity, diff, kgUpdated);
+    function autoResize(el) {
+      el.style.height = 'auto';
+      el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+      document.getElementById('input-count').textContent = el.value.length + ' chars';
+    }
 
-  conversationHistory.push({
-    role: 'user',
-    text: userText,
-    entities: entities.map(e => ({ name: e.name, type: e.type })),
-    ambiguity
-  });
+    function tryDemo(text) {
+      document.getElementById('user-input').value = text;
+      sendMessage();
+    }
 
-  turnCount++;
+    function clearAll() {
+      KG.entities = {};
+      KG.relations = [];
+      nodePositions = {};
+      conversationHistory = [];
+      turnCount = 0;
 
-  return {
-    userText,
-    response,
-    entities,
-    triples,
-    ambiguity,
-    snapBefore,
-    snapAfter,
-    diff,
-    kgUpdated
-  };
-}
+      document.getElementById('chat-messages').innerHTML = `
+        <div class="welcome" id="welcome">
+          <div class="welcome-icon">🧠</div>
+          <h2>Knowledge Graph Chatbot</h2>
+          <p>Tell me about people, places, and their relationships. I'll build a knowledge graph from our conversation and detect ambiguities before updating memory.</p>
+          <div class="demo-pills">
+            <button class="demo-pill" onclick="tryDemo('John works at Google')">John works at Google</button>
+            <button class="demo-pill" onclick="tryDemo('He likes AI')">He likes AI</button>
+            <button class="demo-pill" onclick="tryDemo('He works there as a researcher')">He works there as a researcher</button>
+            <button class="demo-pill" onclick="tryDemo('Sarah founded OpenAI')">Sarah founded OpenAI</button>
+            <button class="demo-pill" onclick="tryDemo('Alice lives in San Francisco')">Alice lives in San Francisco</button>
+            <button class="demo-pill" onclick="runFullDemo()">▶ Run Full Demo</button>
+          </div>
+        </div>`;
 
-// ===================== FIX ASYNC BUG =====================
+      renderGraph();
+      updateKGList();
+      updateStats();
+    }
 
-async function processAndRender(text) {
-  isProcessing = true;
-  document.getElementById('send-btn').disabled = true;
+    function escHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
 
-  const welcome = document.getElementById('welcome');
-  if (welcome) welcome.remove();
+    // ════════════════════════════════════════════════════════════
+    // DEMO SEQUENCE
+    // ════════════════════════════════════════════════════════════
 
-  appendUserMessage(text);
+    async function runFullDemo() {
+      clearAll();
+      const steps = [
+        'John works at Google',
+        'He likes AI',
+        'He works there as a researcher',
+        'Sarah founded OpenAI',
+        'Alice lives in San Francisco and works at Anthropic',
+        'She is interested in machine learning',
+        'Bob works there too',
+        'Where does John work?',
+        'What does Sarah like?',
+      ];
 
-  const loadingId = 'loading-' + Date.now();
-  appendLoading(loadingId);
+      for (const step of steps) {
+        await new Promise(r => setTimeout(r, 600));
+        await processAndRender(step);
+        await new Promise(r => setTimeout(r, 800));
+      }
+    }
 
-  await new Promise(r => setTimeout(r, 300));
-
-  // FIX: await added
-  const result = await processInput(text);
-
-  document.getElementById(loadingId)?.remove();
-
-  appendBotResponse(result);
-  renderGraph();
-  updateKGList();
-  updateStats();
-
-  isProcessing = false;
-  document.getElementById('send-btn').disabled = false;
-  document.getElementById('user-input').focus();
-}
-
-</script>
+    // ── Init ──────────────────────────────────────────────────
+    renderGraph();
+    updateKGList();
+    updateStats();
+  </script>
 </body>
+
 </html>
