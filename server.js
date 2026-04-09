@@ -17,7 +17,7 @@ app.use(express.json());
 // ========================
 // Hugging Face Token
 // ========================
-const HF_TOKEN = "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";
+const HF_TOKEN = "hf......";
 
 // Create client
 const client = new InferenceClient(HF_TOKEN);
