@@ -1,0 +1,27 @@
+{
+  "name": "knowledgegraphchatbot_nlp_project",
+  "version": "1.0.0",
+  "description": "",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Bloomberg890/KnowledgeGraphChatbot_NLP_Project.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Bloomberg890/KnowledgeGraphChatbot_NLP_Project/issues"
+  },
+  "homepage": "https://github.com/Bloomberg890/KnowledgeGraphChatbot_NLP_Project#readme",
+  "dependencies": {
+    "@huggingface/inference": "^4.13.15",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "node-fetch": "^2.7.0"
+  }
+}

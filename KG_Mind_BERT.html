@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KG Mind — BERT NER</title>
+  <style>
+    :root {
+      --bg:#0a0a0f;--surface:#12121a;--surface2:#1a1a25;--surface3:#22223a;
+      --border:rgba(120,110,255,.15);--border2:rgba(120,110,255,.28);
+      --text:#e8e6ff;--text2:#9490c0;--text3:#5a5680;
+      --accent:#7c6fff;--accent2:#a896ff;
+      --green:#4ade80;--amber:#fbbf24;--red:#f87171;--teal:#22d3ee;
+      --mono:'Courier New',monospace;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:var(--bg);color:var(--text);font-family:system-ui,sans-serif;font-size:14px;line-height:1.6;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+    header{display:flex;align-items:center;justify-content:space-between;padding:10px 18px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;gap:10px;flex-wrap:wrap}
+    .logo{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:600}
+    .logo-icon{width:26px;height:26px;background:linear-gradient(135deg,#7c6fff,#a896ff);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:13px}
+    .header-stats{display:flex;gap:8px;flex-wrap:wrap}
+    .stat-pill{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2);background:var(--surface2);border:1px solid var(--border);padding:3px 9px;border-radius:20px}
+    .stat-pill strong{color:var(--text);font-weight:600}
+    .model-status{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text2)}
+    .sdot{width:7px;height:7px;border-radius:50%;background:var(--text3);flex-shrink:0;transition:background .3s}
+    .sdot.loading{background:var(--amber);animation:pulse 1s infinite}
+    .sdot.ready{background:var(--green)}
+    .sdot.error{background:var(--red)}
+    .header-btns{display:flex;gap:6px}
+    .hbtn{font-size:11px;color:var(--text3);background:none;border:1px solid var(--border);padding:4px 10px;border-radius:6px;cursor:pointer;font-family:inherit;transition:all .15s}
+    .hbtn:hover{color:var(--text2);border-color:var(--border2)}
+    .main{display:grid;grid-template-columns:1fr 380px;flex:1;overflow:hidden}
+    .chat-panel{display:flex;flex-direction:column;overflow:hidden;border-right:1px solid var(--border)}
+    .chat-messages{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:14px;scroll-behavior:smooth}
+    .chat-messages::-webkit-scrollbar{width:3px}
+    .chat-messages::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+    .welcome{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:30px;gap:14px;opacity:.85}
+    .welcome-icon{font-size:40px}
+    .welcome h2{font-size:18px;font-weight:600}
+    .welcome p{color:var(--text2);max-width:360px;line-height:1.7;font-size:13px}
+    .demo-pills{display:flex;flex-wrap:wrap;gap:7px;justify-content:center;margin-top:6px}
+    .demo-pill{background:var(--surface2);border:1px solid var(--border2);color:var(--accent2);padding:5px 13px;border-radius:20px;font-size:12px;cursor:pointer;font-family:inherit;transition:all .15s}
+    .demo-pill:hover{background:var(--surface3);border-color:var(--accent);color:var(--text)}
+    .msg{display:flex;gap:9px;align-items:flex-start;animation:fadeIn .22s ease}
+    .msg-avatar{width:26px;height:26px;border-radius:7px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600}
+    .msg.user .msg-avatar{background:rgba(34,211,238,.15);border:1px solid rgba(34,211,238,.3);color:var(--teal)}
+    .msg.bot .msg-avatar{background:rgba(124,111,255,.15);border:1px solid rgba(124,111,255,.3);color:var(--accent2)}
+    .msg-body{flex:1;min-width:0}
+    .msg-role{font-size:10px;color:var(--text3);font-weight:500;margin-bottom:3px;letter-spacing:.5px;text-transform:uppercase}
+    .msg.user .msg-content{background:var(--surface2);border:1px solid rgba(34,211,238,.2);padding:9px 13px;border-radius:4px 11px 11px 11px;color:var(--text);font-size:13px}
+    .bot-response{display:flex;flex-direction:column;gap:7px}
+    .response-card{background:var(--surface);border:1px solid var(--border);border-radius:4px 11px 11px 11px;overflow:hidden}
+    .response-card.query-card{border-color:rgba(34,211,238,.3)}
+    .response-section{padding:9px 13px;border-bottom:1px solid var(--border)}
+    .response-section:last-child{border-bottom:none}
+    .section-label{font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;margin-bottom:5px}
+    .section-label.reply{color:var(--accent2)}
+    .section-label.answer{color:var(--teal)}
+    .section-label.ner{color:#f472b6}
+    .section-label.triples{color:var(--amber)}
+    .section-label.kg{color:var(--green)}
+    .section-label.unknown{color:var(--text3)}
+    .section-text{color:var(--text);line-height:1.6;font-size:13px}
+    .answer-text{color:var(--text);line-height:1.6;font-size:13px;padding:6px 10px;background:rgba(34,211,238,.06);border-left:2px solid var(--teal);border-radius:0 6px 6px 0}
+    .ner-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
+    .ner-chip{font-size:10px;font-weight:600;padding:2px 8px;border-radius:12px;display:flex;align-items:center;gap:4px}
+    .ner-chip.Person{background:rgba(124,111,255,.2);color:#c4bcff}
+    .ner-chip.Organization{background:rgba(34,211,238,.15);color:#67e8f9}
+    .ner-chip.Location{background:rgba(74,222,128,.15);color:#86efac}
+    .ner-chip.Misc{background:rgba(251,191,36,.15);color:#fde68a}
+    .ner-chip.Unknown{background:rgba(90,86,128,.15);color:var(--text3)}
+    .triples-list{margin-top:5px;display:flex;flex-direction:column;gap:4px}
+    .triple-row{font-family:var(--mono);font-size:11px;padding:4px 8px;background:rgba(124,111,255,.06);border-radius:5px;color:var(--text2);display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+    .triple-row .ts{color:var(--accent2);font-weight:500}
+    .triple-row .tv{color:var(--amber);font-style:italic}
+    .triple-row .to{color:var(--teal)}
+    .changes-strip{margin-top:5px;padding:5px 9px;background:rgba(74,222,128,.07);border:1px solid rgba(74,222,128,.2);border-radius:7px}
+    .change-item{font-family:var(--mono);font-size:10px;color:var(--green);display:flex;align-items:center;gap:5px;padding:1px 0}
+    .change-badge{font-size:8px;font-weight:600;padding:1px 5px;border-radius:3px;background:rgba(74,222,128,.2);color:var(--green)}
+    .input-bar{padding:12px 16px;border-top:1px solid var(--border);background:var(--surface);flex-shrink:0}
+    .input-row{display:flex;gap:7px;align-items:flex-end}
+    #user-input{flex:1;resize:none;background:var(--surface2);border:1px solid var(--border2);border-radius:9px;padding:9px 13px;color:var(--text);font-family:inherit;font-size:14px;line-height:1.5;outline:none;transition:border-color .15s;max-height:120px;min-height:40px}
+    #user-input:focus{border-color:var(--accent)}
+    #user-input::placeholder{color:var(--text3)}
+    #user-input:disabled{opacity:.5;cursor:not-allowed}
+    .send-btn{width:40px;height:40px;border-radius:9px;background:linear-gradient(135deg,#7c6fff,#a896ff);border:none;cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0;color:white}
+    .send-btn:hover{transform:scale(1.05)}.send-btn:active{transform:scale(.97)}.send-btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+    .input-hint{font-size:10px;color:var(--text3);margin-top:5px;display:flex;justify-content:space-between}
+    .graph-panel{display:flex;flex-direction:column;overflow:hidden;background:var(--surface)}
+    .panel-header{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+    .panel-title{font-size:11px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--text2);display:flex;align-items:center;gap:5px}
+    .live-dot{width:5px;height:5px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+    .graph-canvas-wrap{flex:1;position:relative;overflow:hidden;min-height:200px}
+    #graph-svg{width:100%;height:100%}
+    .graph-empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;color:var(--text3);font-size:12px}
+    .kg-list-panel{border-top:1px solid var(--border);max-height:200px;overflow-y:auto;flex-shrink:0}
+    .kg-list-panel::-webkit-scrollbar{width:3px}
+    .kg-list-panel::-webkit-scrollbar-thumb{background:var(--border2)}
+    .kg-list-header{padding:7px 14px;font-size:10px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--text3);position:sticky;top:0;background:var(--surface);border-bottom:1px solid var(--border)}
+    .kg-list-body{padding:7px 14px 10px}
+    .entity-row{display:flex;align-items:center;gap:7px;padding:3px 0;border-bottom:1px solid var(--border);font-size:11px}
+    .entity-row:last-child{border-bottom:none}
+    .entity-name{color:var(--text);font-weight:500;flex:1}
+    .entity-type{font-size:9px;font-weight:600;padding:1px 7px;border-radius:4px;text-transform:uppercase;letter-spacing:.3px}
+    .entity-type.Person{background:rgba(124,111,255,.15);color:#a896ff}
+    .entity-type.Organization{background:rgba(34,211,238,.12);color:#22d3ee}
+    .entity-type.Location{background:rgba(74,222,128,.12);color:#4ade80}
+    .entity-type.Misc{background:rgba(251,191,36,.12);color:#fbbf24}
+    .entity-type.Unknown{background:rgba(90,86,128,.15);color:var(--text3)}
+    .edge-row{padding:3px 0;font-family:var(--mono);font-size:10px;color:var(--text2);display:flex;align-items:center;gap:4px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+    .edge-row:last-child{border-bottom:none}
+    .edge-subject{color:var(--accent2)}.edge-rel{color:var(--text3);font-size:9px}.edge-object{color:var(--teal)}
+    .loading-dots{display:flex;gap:4px;align-items:center;padding:9px 0}
+    .loading-dot{width:5px;height:5px;border-radius:50%;background:var(--accent2);opacity:.3;animation:dot-bounce 1.4s infinite ease-in-out}
+    .loading-dot:nth-child(2){animation-delay:.2s}.loading-dot:nth-child(3){animation-delay:.4s}
+    @keyframes dot-bounce{0%,80%,100%{transform:scale(.6);opacity:.3}40%{transform:scale(1);opacity:1}}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+    @keyframes nodeIn{from{transform:scale(.3);opacity:0}to{transform:scale(1);opacity:1}}
+    .new-node-anim{animation:nodeIn .4s cubic-bezier(.34,1.56,.64,1) forwards}
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo"><div class="logo-icon">🧠</div>KG Mind <span style="font-size:10px;color:var(--text3);font-weight:400;margin-left:4px">BERT NER</span></div>
+  <div class="header-stats">
+    <div class="stat-pill">Nodes: <strong id="stat-nodes">0</strong></div>
+    <div class="stat-pill">Edges: <strong id="stat-edges">0</strong></div>
+    <div class="stat-pill">Turns: <strong id="stat-turns">0</strong></div>
+  </div>
+  <div class="model-status">
+    <div class="sdot loading" id="sdot"></div>
+    <span id="slabel">Connecting to BERT…</span>
+  </div>
+  <div class="header-btns">
+    <button class="hbtn" onclick="exportKG()">Export</button>
+    <button class="hbtn" onclick="clearAll()">↺ Reset</button>
+  </div>
+</header>
+
+<div class="main">
+  <div class="chat-panel">
+    <div class="chat-messages" id="chat-messages">
+      <div class="welcome" id="welcome">
+        <div class="welcome-icon">🧠</div>
+        <h2>KG Mind — BERT NER</h2>
+        <p>Entity recognition powered by <strong>dslim/bert-base-NER</strong> on HuggingFace. No hardcoded dictionaries — pure model inference. Relations extracted via verb pattern matching.</p>
+        <div class="demo-pills">
+          <button class="demo-pill" onclick="tryDemo('Elon Musk founded Tesla and SpaceX in 2002')">Elon Musk founded Tesla</button>
+          <button class="demo-pill" onclick="tryDemo('Sam Altman is the CEO of OpenAI based in San Francisco')">Sam Altman at OpenAI</button>
+          <button class="demo-pill" onclick="tryDemo('Alice studied at MIT and now works at Anthropic in San Francisco')">Alice at MIT and Anthropic</button>
+          <button class="demo-pill" onclick="tryDemo('Google acquired DeepMind and YouTube')">Google acquisitions</button>
+          <button class="demo-pill" onclick="runFullDemo()">▶ Full Demo</button>
+        </div>
+      </div>
+    </div>
+    <div class="input-bar">
+      <div class="input-row">
+        <textarea id="user-input" placeholder="Tell me about people, companies, places…" rows="1"></textarea>
+        <button class="send-btn" id="send-btn">➤</button>
+      </div>
+      <div class="input-hint"><span>Enter to send · Shift+Enter for newline</span><span id="input-count">0 chars</span></div>
+    </div>
+  </div>
+
+  <div class="graph-panel">
+    <div class="panel-header">
+      <div class="panel-title"><div class="live-dot"></div>Live Knowledge Graph</div>
+    </div>
+    <div class="graph-canvas-wrap">
+      <svg id="graph-svg">
+        <defs>
+          <marker id="garrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+            <path d="M1 1L9 5L1 9" fill="none" stroke="rgba(120,110,255,0.5)" stroke-width="1.5" stroke-linecap="round"/>
+          </marker>
+        </defs>
+        <g id="graph-edges"></g>
+        <g id="graph-nodes"></g>
+      </svg>
+      <div class="graph-empty" id="graph-empty"><span style="font-size:28px">○</span><span>Graph empty — start chatting</span></div>
+    </div>
+    <div class="kg-list-panel">
+      <div class="kg-list-header">Entities &amp; Relations</div>
+      <div class="kg-list-body" id="kg-list-body"><div style="color:var(--text3);font-size:11px;padding:4px 0">No data yet</div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+// GLOBALS
+// ─────────────────────────────────────────────
+const HF_NER_URL = 'http://localhost:5000/ner';
+let modelReady = false;
+let isProcessing = false;
+let turnCount = 0;
+let conversationHistory = [];
+let nodePositions = {};
+let dragNode = null;
+let dragOffset = { x: 0, y: 0 };
+let filterText = '';
+
+// ─────────────────────────────────────────────
+// KNOWLEDGE GRAPH
+// ─────────────────────────────────────────────
+const KG = {
+  entities: {},
+  relations: [],
+  can(n) { return n.trim().toLowerCase(); },
+  addEntity(name, type) {
+    const key = this.can(name);
+    if (!this.entities[key]) {
+      this.entities[key] = { name: name.trim(), type, isNew: true };
+    } else {
+      this.entities[key].isNew = false;
+    }
+    return key;
+  },
+  addRelation(src, rel, tgt, verb) {
+    const s = this.can(src), t = this.can(tgt);
+    if (!this.entities[s] || !this.entities[t] || s === t) return;
+    for (const r of this.relations) {
+      if (r.s === s && r.rel === rel && r.t === t) return;
+    }
+    this.relations.push({ s, rel, t, verb: verb || rel, isNew: true });
+  },
+  clearNewFlags() {
+    Object.values(this.entities).forEach(e => e.isNew = false);
+    this.relations.forEach(r => r.isNew = false);
+  },
+  snapshot() {
+    return {
+      nodes: JSON.parse(JSON.stringify(this.entities)),
+      edges: JSON.parse(JSON.stringify(this.relations))
+    };
+  }
+};
+
+// ─────────────────────────────────────────────
+// BERT NER via HuggingFace Inference API
+// ─────────────────────────────────────────────
+const TYPE_MAP = { PER: 'Person', ORG: 'Organization', LOC: 'Location', MISC: 'Misc' };
+
+async function nerBERT(text) {
+  const resp = await fetch('http://localhost:5000/ner', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: text })
+  });
+
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.error || 'Server error');
+  }
+
+  const raw = await resp.json();
+
+  if (!Array.isArray(raw)) {
+    throw new Error('Unexpected response shape');
+  }
+
+  // rest stays SAME
+  // Merge BIO tokens into spans
+  const spans = [];
+  let current = null;
+
+  for (const tok of raw) {
+    const tag = tok.entity_group || tok.entity || '';
+    const baseTag = tag.replace(/^[BI]-/, '');
+    const mappedType = TYPE_MAP[baseTag] || 'Unknown';
+    const word = (tok.word || '').replace(/^##/, '');
+
+    if (tag.startsWith('B-') || (!tag.startsWith('I-') && tag !== '')) {
+      if (current) spans.push(current);
+      current = { name: word, type: mappedType, score: tok.score || 1 };
+    } else if (tag.startsWith('I-') && current) {
+      // Handle subword tokens — join without space if starts with ##
+      const needsSpace = !tok.word.startsWith('##');
+      current.name = current.name + (needsSpace ? ' ' : '') + word;
+      current.score = Math.max(current.score, tok.score || 1);
+    }
+  }
+  if (current) spans.push(current);
+
+  // Deduplicate and filter low-confidence / very short
+  const seen = new Set();
+  return spans.filter(e => {
+    const k = e.name.toLowerCase().trim();
+    if (k.length < 2 || e.score < 0.65 || seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
+// ─────────────────────────────────────────────
+// RELATION EXTRACTION (verb pattern matching)
+// ─────────────────────────────────────────────
+const REL_PATTERNS = [
+  [/(\w[\w\s']*?)\s+works?\s+(?:at|for)\s+([\w][\w\s]*?)(?:\s*[,.]|$)/gi, 'works_at'],
+  [/(\w[\w\s']*?)\s+(?:is\s+)?based\s+in\s+([\w][\w\s]*?)(?:\s*[,.]|$)/gi, 'based_in'],
+  [/(\w[\w\s']*?)\s+lives?\s+in\s+([\w][\w\s]*?)(?:\s*[,.]|$)/gi, 'lives_in'],
+  [/(\w[\w\s']*?)\s+(?:co-?)?founded?\s+([\w][\w\s]*?)(?:\s*[,.]|$)/gi, 'founded'],
+  [/(\w[\w\s']*?)\s+(?:created?|invented?|built?|developed?)\s+([\w][\w\s]*?)(?:\s*[,.]|$)/gi, 'created'],
+  [/(\w[\w\s']*?)\s+(?:is\s+(?:the\s+)?)?(?:ceo|cto|founder|head|president|director)\s+of\s+([\w][\w\s]*?)(?:\s*[,.]|$)/gi, 'leads'],
+  [/(\w[\w\s']*?)\s+leads?\s+([\w][\w\s]*?)(?:\s*[,.]|$)/gi, 'leads'],
+  [/(\w[\w\s']*?)\s+(?:acquired?|bought?|purchased?)\s+([\w][\w\s]*?)(?:\s*[,.]|$)/gi, 'acquired'],
+  [/(\w[\w\s']*?)\s+(?:released?|launched?|published?|announced?)\s+([\w][\w\s]*?)(?:\s*[,.]|$)/gi, 'released'],
+  [/(\w[\w\s']*?)\s+joined?\s+([\w][\w\s]*?)(?:\s*[,.]|$)/gi, 'joined'],
+  [/(\w[\w\s']*?)\s+(?:studied?|attended?)\s+(?:at\s+)?([\w][\w\s]*?)(?:\s*[,.]|$)/gi, 'studied_at'],
+  [/(\w[\w\s']*?)\s+graduated?\s+from\s+([\w][\w\s]*?)(?:\s*[,.]|$)/gi, 'graduated_from'],
+  [/(\w[\w\s']*?)\s+(?:partnered?|collaborated?)\s+with\s+([\w][\w\s]*?)(?:\s*[,.]|$)/gi, 'partnered_with'],
+  [/(\w[\w\s']*?)\s+(?:invested?\s+in|funded?)\s+([\w][\w\s]*?)(?:\s*[,.]|$)/gi, 'invested_in'],
+  [/(\w[\w\s']*?)\s+was\s+born\s+in\s+([\w][\w\s]*?)(?:\s*[,.]|$)/gi, 'born_in'],
+  [/(\w[\w\s']*?)\s+was\s+(?:founded|created|built|established)\s+by\s+([\w][\w\s]*?)(?:\s*[,.]|$)/gi, 'founded_by'],
+  [/(\w[\w\s']*?)\s+was\s+acquired\s+by\s+([\w][\w\s]*?)(?:\s*[,.]|$)/gi, 'acquired_by'],
+  [/(\w[\w\s']*?)\s+(?:likes?|loves?|enjoys?)\s+([\w][\w\s]*?)(?:\s*[,.]|$)/gi, 'likes'],
+  [/(\w[\w\s']*?)\s+(?:hates?|dislikes?)\s+([\w][\w\s]*?)(?:\s*[,.]|$)/gi, 'dislikes'],
+  [/(\w[\w\s']*?)\s+(?:supports?|backs?|endorses?)\s+([\w][\w\s]*?)(?:\s*[,.]|$)/gi, 'supports'],
+  [/(\w[\w\s']*?)\s+met?\s+([\w][\w\s]*?)(?:\s*[,.]|$)/gi, 'met'],
+  [/(\w[\w\s']*?)\s+(?:reports?\s+to|works?\s+under)\s+([\w][\w\s]*?)(?:\s*[,.]|$)/gi, 'reports_to'],
+  [/(\w[\w\s']*?)\s+(?:is\s+part\s+of|belongs?\s+to)\s+([\w][\w\s]*?)(?:\s*[,.]|$)/gi, 'part_of'],
+];
+
+function extractRelations(text, entities) {
+  const triples = [], seen = new Set();
+
+  // Pattern-based extraction
+  for (const [pat, rel] of REL_PATTERNS) {
+    const re = new RegExp(pat.source, 'gi');
+    let m;
+    while ((m = re.exec(text)) !== null) {
+      const s = m[1].trim(), o = m[2].trim();
+      if (!s || !o || s === o || s.length < 2 || o.length > 50) continue;
+      const k = s.toLowerCase() + '|' + rel + '|' + o.toLowerCase();
+      if (!seen.has(k)) { seen.add(k); triples.push([s, rel, o, rel]); }
+    }
+  }
+
+  // Adjacent BERT entity pairs with verb between them
+  const positions = [];
+  for (const e of entities) {
+    let idx = 0;
+    while (true) {
+      const pos = text.indexOf(e.name, idx);
+      if (pos === -1) break;
+      positions.push({ name: e.name, start: pos, end: pos + e.name.length });
+      idx = pos + 1;
+    }
+  }
+  positions.sort((a, b) => a.start - b.start);
+  for (let i = 0; i < positions.length - 1; i++) {
+    const a = positions[i], b = positions[i + 1];
+    const between = text.slice(a.end, b.start).trim();
+    if (between.length > 0 && between.length < 45) {
+      const verb = extractVerb(between);
+      if (verb) {
+        const k = a.name.toLowerCase() + '|' + verb + '|' + b.name.toLowerCase();
+        if (!seen.has(k)) { seen.add(k); triples.push([a.name, verb, b.name, verb]); }
+      }
+    }
+  }
+  return triples;
+}
+
+function extractVerb(s) {
+  const clean = s.replace(/^(and|or|but|,|;|:|\s)+/, '').replace(/(and|or|but|,|;|:|\s)+$/, '').trim();
+  if (!clean) return null;
+  const verbRe = /\b(is|are|was|were|works?|lives?|likes?|loves?|hates?|owns?|leads?|founded?|created?|invented?|built?|wrote?|released?|launched?|acquired?|joined?|left?|met?|studied?|attended?|graduated?|partnered?|collaborated?|funded?|invested?|supports?|heads?|manages?|directs?|runs?|reports?)\b/i;
+  if (!verbRe.test(clean)) return null;
+  return clean.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '').slice(0, 40) || null;
+}
+
+// ─────────────────────────────────────────────
+// QA FROM KG
+// ─────────────────────────────────────────────
+const QUESTION_MAP = {
+  work: ['works_at','works_for'], works: ['works_at'], job: ['works_at'],
+  live: ['lives_in','based_in'], lives: ['lives_in'], based: ['based_in'],
+  found: ['founded','founded_by'], created: ['created','created_by'],
+  lead: ['leads'], ceo: ['leads'], head: ['leads'],
+  acquired: ['acquired','acquired_by'],
+  studied: ['studied_at','attended'], graduated: ['graduated_from'],
+  like: ['likes'], love: ['likes'], partner: ['partnered_with'],
+  born: ['born_in'],
+};
+
+function isQuestion(text) {
+  const t = text.trim();
+  return t.endsWith('?') || /^(what|where|who|when|how|which|does|do|is|are|can|tell|did)\b/i.test(t);
+}
+
+function answerFromKG(text) {
+  const tl = text.toLowerCase();
+  let subjKey = null;
+  for (const [k, e] of Object.entries(KG.entities)) {
+    if (new RegExp('\\b' + escR(e.name.toLowerCase()) + '\\b').test(tl)) { subjKey = k; break; }
+  }
+  if (!subjKey) return { type: 'unknown', message: "I don't have enough information in the knowledge graph to answer that yet." };
+
+  const words = tl.replace(/[^a-z\s]/g, '').split(/\s+/);
+  const wanted = new Set();
+  for (const w of words) if (QUESTION_MAP[w]) QUESTION_MAP[w].forEach(r => wanted.add(r));
+
+  const allRels = KG.relations.filter(r => r.s === subjKey || r.t === subjKey);
+  const matched = wanted.size > 0 ? allRels.filter(r => wanted.has(r.rel)) : allRels;
+
+  if (!matched.length) {
+    return { type: 'not_found', message: 'I have ' + KG.entities[subjKey].name + ' in the graph but don\'t have that specific info yet.' };
+  }
+  const answers = matched.map(r => {
+    const se = KG.entities[r.s], te = KG.entities[r.t];
+    if (!se || !te) return null;
+    const verb = r.verb.replace(/_/g, ' ');
+    return r.s === subjKey ? se.name + ' ' + verb + ' ' + te.name : te.name + ' ' + verb + ' ' + se.name;
+  }).filter(Boolean);
+
+  return { type: 'answer', message: answers.join('. ') + '.' };
+}
+
+// ─────────────────────────────────────────────
+// MAIN PIPELINE
+// ─────────────────────────────────────────────
+async function processInput(userText) {
+  KG.clearNewFlags();
+  const snapBefore = KG.snapshot();
+
+  if (isQuestion(userText)) {
+    const ans = answerFromKG(userText);
+    turnCount++;
+    return { mode: 'query', ans };
+  }
+
+  const entities = await nerBERT(userText);
+  const triples = extractRelations(userText, entities);
+
+  entities.forEach(e => KG.addEntity(e.name, e.type));
+  triples.forEach(([s, rel, o, verb]) => {
+    if (!KG.entities[KG.can(s)]) KG.addEntity(s, 'Unknown');
+    if (!KG.entities[KG.can(o)]) KG.addEntity(o, 'Unknown');
+    KG.addRelation(s, rel, o, verb);
+  });
+
+  const snapAfter = KG.snapshot();
+  const addedNodes = Object.keys(snapAfter.nodes).filter(k => !snapBefore.nodes[k]);
+  const beforeEdgeSet = new Set(snapBefore.edges.map(e => e.s + '|' + e.rel + '|' + e.t));
+  const addedEdges = snapAfter.edges.filter(e => !beforeEdgeSet.has(e.s + '|' + e.rel + '|' + e.t));
+
+  conversationHistory.push({ entities: entities.map(e => ({ name: e.name, type: e.type })) });
+  turnCount++;
+  return { mode: 'statement', entities, triples, addedNodes, addedEdges };
+}
+
+// ─────────────────────────────────────────────
+// UI HELPERS
+// ─────────────────────────────────────────────
+function escH(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function escR(s) { return s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); }
+function setStatus(cls, msg) {
+  document.getElementById('sdot').className = 'sdot ' + cls;
+  document.getElementById('slabel').textContent = msg;
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+  document.getElementById('input-count').textContent = el.value.length + ' chars';
+}
+
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+}
+
+// ─────────────────────────────────────────────
+// SEND / RENDER
+// ─────────────────────────────────────────────
+function sendMessage() {
+  const inp = document.getElementById('user-input');
+  const text = inp.value.trim();
+  if (!text || isProcessing || !modelReady) return;
+  inp.value = '';
+  autoResize(inp);
+  document.getElementById('input-count').textContent = '0 chars';
+  processAndRender(text);
+}
+
+async function processAndRender(text) {
+  isProcessing = true;
+  document.getElementById('send-btn').disabled = true;
+  document.getElementById('user-input').disabled = true;
+  const welcome = document.getElementById('welcome');
+  if (welcome) welcome.remove();
+  appendUserMsg(text);
+  const lid = 'l' + Date.now();
+  appendLoading(lid);
+
+  try {
+    const result = await processInput(text);
+    document.getElementById(lid)?.remove();
+    if (result.mode === 'query') appendQueryResponse(result);
+    else appendBotResponse(result);
+  } catch (err) {
+    document.getElementById(lid)?.remove();
+    if (err && err.loading) {
+      appendError('Model is still loading on HuggingFace (~' + Math.ceil(err.eta) + 's). Please wait and try again.');
+    } else {
+      appendError('Error: ' + (err.message || 'Unknown error'));
+    }
+  }
+
+  initNodePositions();
+  runForceSimulation(() => { renderGraph(); updateKGList(); updateStats(); });
+  isProcessing = false;
+  document.getElementById('send-btn').disabled = false;
+  document.getElementById('user-input').disabled = false;
+  document.getElementById('user-input').focus();
+}
+
+function appendUserMsg(text) {
+  const c = document.getElementById('chat-messages');
+  const d = document.createElement('div'); d.className = 'msg user';
+  d.innerHTML = '<div class="msg-avatar">U</div><div class="msg-body"><div class="msg-role">You</div><div class="msg-content">' + escH(text) + '</div></div>';
+  c.appendChild(d); c.scrollTop = c.scrollHeight;
+}
+
+function appendLoading(id) {
+  const c = document.getElementById('chat-messages');
+  const d = document.createElement('div'); d.className = 'msg bot'; d.id = id;
+  d.innerHTML = '<div class="msg-avatar">KG</div><div class="msg-body"><div class="msg-role">KG Mind</div><div class="loading-dots"><div class="loading-dot"></div><div class="loading-dot"></div><div class="loading-dot"></div></div></div>';
+  c.appendChild(d); c.scrollTop = c.scrollHeight;
+}
+
+function appendError(msg) {
+  const c = document.getElementById('chat-messages');
+  const d = document.createElement('div'); d.className = 'msg bot';
+  d.innerHTML = '<div class="msg-avatar">KG</div><div class="msg-body"><div class="msg-role">KG Mind</div><div class="response-card"><div class="response-section"><div class="section-label" style="color:var(--red)">⚠ Error</div><div style="font-size:12px;color:var(--text2)">' + escH(msg) + '</div></div></div></div>';
+  c.appendChild(d); c.scrollTop = c.scrollHeight;
+}
+
+function appendQueryResponse(result) {
+  const c = document.getElementById('chat-messages');
+  const d = document.createElement('div'); d.className = 'msg bot';
+  const { ans } = result;
+  let inner = '';
+  if (ans.type === 'answer') {
+    inner = '<div class="response-section"><div class="section-label answer">🔍 Answer</div><div class="answer-text">' + escH(ans.message) + '</div></div><div class="response-section"><div class="section-label kg">🧠 Source: Knowledge Graph</div><div style="font-size:11px;color:var(--text3);margin-top:2px">' + Object.keys(KG.entities).length + ' nodes · ' + KG.relations.length + ' edges</div></div>';
+  } else {
+    inner = '<div class="response-section"><div class="section-label unknown">🔎 Not Found</div><div style="font-size:12px;color:var(--text2)">' + escH(ans.message) + '</div></div>';
+  }
+  d.innerHTML = '<div class="msg-avatar">KG</div><div class="msg-body"><div class="msg-role">KG Mind</div><div class="bot-response"><div class="response-card query-card">' + inner + '</div></div></div>';
+  c.appendChild(d); c.scrollTop = c.scrollHeight;
+}
+
+function appendBotResponse(result) {
+  const { entities, triples, addedNodes, addedEdges } = result;
+  const c = document.getElementById('chat-messages');
+  const d = document.createElement('div'); d.className = 'msg bot';
+
+  // Response text
+  const parts = [];
+  if (addedNodes.length) parts.push('Added ' + addedNodes.map(k => KG.entities[k]?.name || k).join(', ') + '.');
+  if (addedEdges.length) parts.push('Relations: ' + addedEdges.map(e => (KG.entities[e.s]?.name || e.s) + ' → ' + e.verb.replace(/_/g,' ') + ' → ' + (KG.entities[e.t]?.name || e.t)).join('; ') + '.');
+  if (!parts.length && entities.length) parts.push('Recognized entities but found no new relations.');
+  if (!parts.length) parts.push("Couldn't extract new knowledge from that input.");
+  const responseText = parts.join(' ');
+
+  // NER chips
+  let nerHTML = '';
+  if (entities.length) {
+    const chips = entities.map(e => '<span class="ner-chip ' + escH(e.type) + '"><span style="width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.7;display:inline-block;margin-right:3px"></span>' + escH(e.name) + '<span style="opacity:.5;font-size:9px;margin-left:3px">' + escH(e.type) + '</span></span>').join('');
+    nerHTML = '<div class="response-section"><div class="section-label ner">🏷 BERT NER (' + entities.length + ')</div><div class="ner-chips">' + chips + '</div></div>';
+  }
+
+  // Triples
+  let triplesHTML = '';
+  if (triples.length) {
+    const rows = triples.slice(0, 6).map(([s, rel, o]) => '<div class="triple-row"><span class="ts">' + escH(s) + '</span><span style="color:var(--text3);font-size:9px">→</span><span class="tv">' + escH(rel.replace(/_/g,' ')) + '</span><span style="color:var(--text3);font-size:9px">→</span><span class="to">' + escH(o) + '</span></div>').join('');
+    triplesHTML = '<div class="response-section"><div class="section-label triples">⚡ Relations (' + triples.length + ')</div><div class="triples-list">' + rows + (triples.length > 6 ? '<div style="font-size:10px;color:var(--text3);margin-top:3px">+' + (triples.length - 6) + ' more</div>' : '') + '</div></div>';
+  }
+
+  // Changes
+  let changesHTML = '';
+  const items = [];
+  addedNodes.forEach(k => { const n = KG.entities[k]; items.push('<div class="change-item"><span class="change-badge">+NODE</span>' + escH(n?.name || k) + ' <span style="opacity:.5">(' + (n?.type || '?') + ')</span></div>'); });
+  addedEdges.forEach(e => { const sn = KG.entities[e.s]?.name || e.s, tn = KG.entities[e.t]?.name || e.t; items.push('<div class="change-item"><span class="change-badge">+EDGE</span>' + escH(sn) + ' → ' + escH(e.verb.replace(/_/g,' ')) + ' → ' + escH(tn) + '</div>'); });
+  changesHTML = items.length
+    ? '<div class="changes-strip">' + items.join('') + '</div>'
+    : '<div class="changes-strip" style="border-color:rgba(90,86,128,.2);background:transparent"><div class="change-item" style="color:var(--text3)">No new nodes or edges</div></div>';
+
+  d.innerHTML = '<div class="msg-avatar">KG</div><div class="msg-body"><div class="msg-role">KG Mind</div><div class="bot-response"><div class="response-card">'
+    + '<div class="response-section"><div class="section-label reply">🧾 Response</div><div class="section-text">' + escH(responseText) + '</div></div>'
+    + nerHTML + triplesHTML
+    + '<div class="response-section"><div class="section-label kg">🧠 KG Changes</div>' + changesHTML + '</div>'
+    + '</div></div></div>';
+  c.appendChild(d); c.scrollTop = c.scrollHeight;
+}
+
+// ─────────────────────────────────────────────
+// GRAPH VISUALIZATION
+// ─────────────────────────────────────────────
+const NODE_COLORS = {
+  Person:       { fill:'#7c6fff', stroke:'#a896ff' },
+  Organization: { fill:'#22d3ee', stroke:'#67e8f9' },
+  Location:     { fill:'#4ade80', stroke:'#86efac' },
+  Misc:         { fill:'#fbbf24', stroke:'#fde68a' },
+  Unknown:      { fill:'#5a5680', stroke:'#7c78a8' },
+};
+
+function getGWH() {
+  const w = document.querySelector('.graph-canvas-wrap');
+  return { W: w ? w.clientWidth : 380, H: w ? w.clientHeight : 300 };
+}
+
+function initNodePositions() {
+  const { W, H } = getGWH();
+  Object.keys(KG.entities).forEach(k => {
+    if (!nodePositions[k]) nodePositions[k] = { x: W/2 + (Math.random()-.5)*100, y: H/2 + (Math.random()-.5)*100, vx:0, vy:0 };
+  });
+  Object.keys(nodePositions).forEach(k => { if (!KG.entities[k]) delete nodePositions[k]; });
+}
+
+function runForceSimulation(cb, n=120) {
+  const { W, H } = getGWH();
+  const keys = Object.keys(KG.entities);
+  for (let t = 0; t < n; t++) {
+    for (let i = 0; i < keys.length; i++) {
+      for (let j = i+1; j < keys.length; j++) {
+        const a = nodePositions[keys[i]], b = nodePositions[keys[j]];
+        if (!a || !b) continue;
+        const dx = b.x-a.x, dy = b.y-a.y, dist = Math.sqrt(dx*dx+dy*dy)||1;
+        const f = 4000/(dist*dist);
+        a.vx -= (dx/dist)*f; a.vy -= (dy/dist)*f;
+        b.vx += (dx/dist)*f; b.vy += (dy/dist)*f;
+      }
+    }
+    KG.relations.forEach(r => {
+      const a = nodePositions[r.s], b = nodePositions[r.t]; if (!a||!b) return;
+      const dx=b.x-a.x, dy=b.y-a.y, dist=Math.sqrt(dx*dx+dy*dy)||1, f=(dist-120)*.05;
+      a.vx+=(dx/dist)*f; a.vy+=(dy/dist)*f; b.vx-=(dx/dist)*f; b.vy-=(dy/dist)*f;
+    });
+    keys.forEach(k => { const p=nodePositions[k]; if(!p)return; p.vx+=(W/2-p.x)*.02; p.vy+=(H/2-p.y)*.02; });
+    const pad=40;
+    keys.forEach(k => {
+      const p=nodePositions[k]; if(!p)return;
+      p.vx*=.6; p.vy*=.6;
+      p.x=Math.max(pad,Math.min(W-pad,p.x+p.vx));
+      p.y=Math.max(pad,Math.min(H-pad,p.y+p.vy));
+    });
+  }
+  cb();
+}
+
+function renderGraph() {
+  const svg = document.getElementById('graph-svg');
+  const eg = document.getElementById('graph-edges');
+  const ng = document.getElementById('graph-nodes');
+  const em = document.getElementById('graph-empty');
+  const keys = Object.keys(KG.entities);
+  if (!keys.length) { em.style.display='flex'; eg.innerHTML=''; ng.innerHTML=''; return; }
+  em.style.display = 'none';
+
+  eg.innerHTML = '';
+  KG.relations.forEach(rel => {
+    const sp = nodePositions[rel.s], tp = nodePositions[rel.t]; if (!sp||!tp) return;
+    const dx=tp.x-sp.x, dy=tp.y-sp.y, dist=Math.sqrt(dx*dx+dy*dy)||1, r=22;
+    const sx=sp.x+(dx/dist)*r, sy=sp.y+(dy/dist)*r, ex=tp.x-(dx/dist)*r, ey=tp.y-(dy/dist)*r;
+    const mx=(sx+ex)/2-dy*.12, my=(sy+ey)/2+dx*.12;
+    const path=document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('d','M'+sx+','+sy+' Q'+mx+','+my+' '+ex+','+ey);
+    path.setAttribute('fill','none');
+    path.setAttribute('stroke', rel.isNew ? '#7c6fff' : 'rgba(120,110,255,0.3)');
+    path.setAttribute('stroke-width', rel.isNew ? '1.5' : '1');
+    path.setAttribute('marker-end','url(#garrow)');
+    eg.appendChild(path);
+    const lt=document.createElementNS('http://www.w3.org/2000/svg','text');
+    lt.setAttribute('x',(sx+mx+ex)/3); lt.setAttribute('y',(sy+my+ey)/3-6);
+    lt.setAttribute('text-anchor','middle'); lt.setAttribute('font-size','8');
+    lt.setAttribute('font-family','monospace'); lt.setAttribute('fill','rgba(148,144,192,0.7)');
+    const lbl=(rel.verb||rel.rel).replace(/_/g,' ');
+    lt.textContent=lbl.length>18?lbl.slice(0,17)+'…':lbl;
+    eg.appendChild(lt);
+  });
+
+  ng.innerHTML = '';
+  keys.forEach(k => {
+    const ent=KG.entities[k], pos=nodePositions[k]; if(!pos)return;
+    const col=NODE_COLORS[ent.type]||NODE_COLORS.Unknown;
+    const g=document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.setAttribute('transform','translate('+pos.x+','+pos.y+')'); g.style.cursor='grab';
+    if(ent.isNew)g.classList.add('new-node-anim');
+    const c=document.createElementNS('http://www.w3.org/2000/svg','circle');
+    c.setAttribute('r','18'); c.setAttribute('fill',col.fill);
+    c.setAttribute('stroke',col.stroke); c.setAttribute('stroke-width',ent.isNew?'1.5':'0.5');
+    c.setAttribute('fill-opacity','0.85'); g.appendChild(c);
+    const tx=document.createElementNS('http://www.w3.org/2000/svg','text');
+    tx.setAttribute('text-anchor','middle'); tx.setAttribute('dominant-baseline','central');
+    tx.setAttribute('font-size','9'); tx.setAttribute('fill','#fff'); tx.setAttribute('font-weight','600');
+    tx.textContent=ent.name.length>9?ent.name.slice(0,8)+'…':ent.name; g.appendChild(tx);
+    const tl=document.createElementNS('http://www.w3.org/2000/svg','text');
+    tl.setAttribute('y','26'); tl.setAttribute('text-anchor','middle');
+    tl.setAttribute('font-size','7'); tl.setAttribute('fill','rgba(148,144,192,.65)');
+    tl.textContent=ent.type; g.appendChild(tl);
+    g.addEventListener('mousedown', e => {
+      dragNode=k;
+      const rect=svg.getBoundingClientRect();
+      dragOffset={x:e.clientX-rect.left-pos.x, y:e.clientY-rect.top-pos.y};
+      g.style.cursor='grabbing'; e.preventDefault();
+    });
+    ng.appendChild(g);
+  });
+}
+
+document.addEventListener('mousemove', e => {
+  if (!dragNode) return;
+  const svg=document.getElementById('graph-svg'), rect=svg.getBoundingClientRect();
+  if (nodePositions[dragNode]) {
+    nodePositions[dragNode].x=e.clientX-rect.left-dragOffset.x;
+    nodePositions[dragNode].y=e.clientY-rect.top-dragOffset.y;
+    nodePositions[dragNode].vx=0; nodePositions[dragNode].vy=0;
+  }
+  renderGraph();
+});
+document.addEventListener('mouseup', () => {
+  if (dragNode) { dragNode=null; document.querySelectorAll('#graph-nodes g').forEach(g=>g.style.cursor='grab'); }
+});
+
+// ─────────────────────────────────────────────
+// KG LIST & STATS
+// ─────────────────────────────────────────────
+function updateKGList() {
+  const b = document.getElementById('kg-list-body');
+  const ents = Object.values(KG.entities);
+  if (!ents.length) { b.innerHTML='<div style="color:var(--text3);font-size:11px;padding:4px 0">No data yet</div>'; return; }
+  let h = '';
+  ents.forEach(e => {
+    h += '<div class="entity-row"><span class="entity-name">'+escH(e.name)+'</span><span class="entity-type '+escH(e.type)+'">'+escH(e.type)+'</span></div>';
+  });
+  if (KG.relations.length) {
+    h += '<div style="margin:6px 0 3px;font-size:9px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--text3)">Relations ('+KG.relations.length+')</div>';
+    KG.relations.forEach(r => {
+      const sn=KG.entities[r.s]?.name||r.s, tn=KG.entities[r.t]?.name||r.t;
+      h += '<div class="edge-row"><span class="edge-subject">'+escH(sn)+'</span><span class="edge-rel">→ '+escH((r.verb||r.rel).replace(/_/g,' '))+' →</span><span class="edge-object">'+escH(tn)+'</span></div>';
+    });
+  }
+  b.innerHTML = h;
+}
+
+function updateStats() {
+  document.getElementById('stat-nodes').textContent = Object.keys(KG.entities).length;
+  document.getElementById('stat-edges').textContent = KG.relations.length;
+  document.getElementById('stat-turns').textContent = turnCount;
+}
+
+// ─────────────────────────────────────────────
+// CONTROLS
+// ─────────────────────────────────────────────
+function exportKG() {
+  const data = { entities: KG.entities, relations: KG.relations, exported: new Date().toISOString() };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'knowledge-graph.json'; a.click();
+}
+
+function clearAll() {
+  KG.entities={}; KG.relations=[]; nodePositions={}; conversationHistory=[]; turnCount=0;
+  document.getElementById('chat-messages').innerHTML = '<div class="welcome" id="welcome"><div class="welcome-icon">🧠</div><h2>KG Mind — BERT NER</h2><p>Entity recognition powered by <strong>dslim/bert-base-NER</strong>. No hardcoded dictionaries.</p><div class="demo-pills"><button class="demo-pill" onclick="tryDemo(\'Elon Musk founded Tesla and SpaceX in 2002\')">Elon Musk founded Tesla</button><button class="demo-pill" onclick="tryDemo(\'Alice studied at MIT and now works at Anthropic\')">Alice at MIT & Anthropic</button><button class="demo-pill" onclick="runFullDemo()">▶ Full Demo</button></div></div>';
+  renderGraph(); updateKGList(); updateStats();
+}
+
+function tryDemo(text) { processAndRender(text); }
+
+async function runFullDemo() {
+  clearAll();
+  const steps = [
+    'Elon Musk founded Tesla and SpaceX in 2002',
+    'Sam Altman is the CEO of OpenAI based in San Francisco',
+    'OpenAI released GPT-4 in March 2023',
+    'Alice studied at MIT and now works at Anthropic',
+    'Google acquired DeepMind and YouTube',
+    'Where does Alice work?',
+    'What did OpenAI release?'
+  ];
+  for (const s of steps) {
+    await new Promise(r => setTimeout(r, 400));
+    await processAndRender(s);
+    await new Promise(r => setTimeout(r, 800));
+  }
+}
+
+// ─────────────────────────────────────────────
+// MODEL WARMUP CHECK
+// ─────────────────────────────────────────────
+async function checkModel() {
+  setStatus('loading', 'Connecting to BERT…');
+  try {
+    const r = await fetch(HF_NER_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ inputs: 'test' })
+    });
+    if (r.status === 503) {
+      const d = await r.json().catch(() => ({}));
+      const eta = d.estimated_time || 20;
+      setStatus('loading', 'Model loading (~' + Math.ceil(eta) + 's)…');
+      setTimeout(checkModel, Math.min(eta * 1000, 10000));
+      return;
+    }
+    modelReady = true;
+    setStatus('ready', 'BERT ready');
+    document.getElementById('user-input').disabled = false;
+    document.getElementById('send-btn').disabled = false;
+  } catch (e) {
+    // Allow offline use with error messages per query
+    modelReady = true;
+    setStatus('error', 'Check connection');
+    document.getElementById('user-input').disabled = false;
+    document.getElementById('send-btn').disabled = false;
+  }
+}
+
+// ─────────────────────────────────────────────
+// INIT — wire up events after DOM ready
+// ─────────────────────────────────────────────
+document.getElementById('user-input').addEventListener('keydown', handleKey);
+document.getElementById('user-input').addEventListener('input', function() { autoResize(this); });
+document.getElementById('send-btn').addEventListener('click', sendMessage);
+
+// Disable input until model ready
+document.getElementById('user-input').disabled = true;
+document.getElementById('send-btn').disabled = true;
+
+renderGraph(); updateKGList(); updateStats();
+checkModel();
+</script>
+</body>
+</html>
